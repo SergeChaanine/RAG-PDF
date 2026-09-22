@@ -22,7 +22,7 @@ from rag_pdf.pdf_processing import document_hash, extract_pdf
 from rag_pdf.service import answer_question, build_index_id, index_document
 from rag_pdf.vector_store import ChromaVectorStore
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 st.set_page_config(page_title="PDF RAG Chatbot", page_icon="📄", layout="wide")
 
 
