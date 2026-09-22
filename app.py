@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+# Keep the app directly runnable without requiring an editable package install.
+SOURCE_DIRECTORY = Path(__file__).resolve().parent / "src"
+if str(SOURCE_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SOURCE_DIRECTORY))
 
 import streamlit as st
 from dotenv import load_dotenv
