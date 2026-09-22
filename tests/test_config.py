@@ -9,9 +9,13 @@ def test_overlap_is_calculated_from_percentage() -> None:
     assert config.overlap_tokens == 60
 
 
+def test_default_chunk_size_is_32_tokens() -> None:
+    assert ChunkConfig().size_tokens == 32
+
+
 @pytest.mark.parametrize(
     ("size", "overlap"),
-    [(99, 15), (501, 15), (400, -1), (400, 41)],
+    [(15, 15), (501, 15), (400, -1), (400, 41)],
 )
 def test_invalid_chunk_settings_are_rejected(size: int, overlap: int) -> None:
     with pytest.raises(ValueError):

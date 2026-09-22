@@ -68,7 +68,7 @@ Do not commit `.env`; it is ignored by Git.
 
 1. Upload one or more qualifying PDFs in the sidebar.
 2. Select the active document.
-3. Choose chunk size and overlap, or retain the recommended 400 tokens and 15%.
+3. Choose chunk size and overlap, or retain the configured 32 tokens and 15%.
 4. Select **Process selected PDF**. The first embedding-model load can take a while.
 5. Ask questions in the chat box.
 6. Open **Retrieved PDF excerpts** below an answer to inspect its evidence and scores.
@@ -84,8 +84,34 @@ the LLM to say when the retrieved evidence does not contain an answer.
 | `GROQ_API_KEY` | required | Authenticates requests to Groq |
 | `GROQ_MODEL` | `openai/gpt-oss-20b` | Generation and question-rewriting model |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local Hugging Face embedding model |
-| `EMBEDDING_DEVICE` | `cpu` | Sentence Transformers device, such as `cpu` or `cuda` |
+| `EMBEDDING_DEVICE` | `auto` | Uses CUDA when available and otherwise falls back to CPU |
+| `EMBEDDING_BATCH_SIZE` | `64` | Limits peak RAM/VRAM while indexing |
 | `RAG_DATA_DIR` | OS user app-data directory | Optional persistent Chroma database location |
+
+### NVIDIA GPU acceleration on Windows
+
+The normal dependency installation can select a CPU-only PyTorch wheel. To use a
+CUDA-capable NVIDIA GPU, install the project CUDA wheel after the base requirements:
+
+```powershell
+python -m pip install -r requirements-cuda.txt
+```
+
+Keep `EMBEDDING_DEVICE=auto` in `.env`. The app will use CUDA when PyTorch can access it
+and otherwise fall back to CPU. After installation, restart Streamlit. The sidebar shows
+the resolved embedding device after a PDF is processed.
+
+After the first successful model download, later starts load it directly from the local
+Hugging Face cache instead of waiting for online update checks.
+
+Verify CUDA independently with:
+
+```powershell
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
+```
+
+Embeddings are generated and written to Chroma in batches. `EMBEDDING_BATCH_SIZE=64`
+limits peak memory; reduce it to `32` if VRAM is constrained.
 
 ## Development checks
 
@@ -99,8 +125,8 @@ The automated tests do not download the embedding model or call Groq.
 
 ## Current retrieval defaults
 
-- Chunk size: 400 tokens
-- Dynamic overlap: 15%, calculated as 60 tokens
+- Chunk size: 32 tokens (minimum 16)
+- Dynamic overlap: 15%, calculated as 5 tokens at the default size
 - Retrieved chunks: 5
 - Similarity: cosine
 - Embeddings: normalized BGE vectors

@@ -35,18 +35,24 @@ def index_document(
 ) -> IndexSummary:
     index_id = build_index_id(document.document_id, embedder.model_name, chunk_config)
     chunks = chunk_document(document, embedder.tokenizer, chunk_config)
-    reused = store.has_index(index_id)
+    existing_count = store.count(index_id)
+    reused = bool(chunks) and existing_count == len(chunks)
     if not reused:
-        embeddings = embedder.embed_documents([chunk.text for chunk in chunks])
-        store.add(
-            index_id,
-            document,
-            chunks,
-            embeddings,
-            embedding_model=embedder.model_name,
-            chunk_size=chunk_config.size_tokens,
-            overlap_percent=chunk_config.overlap_percent,
-        )
+        if existing_count:
+            store.delete(index_id)
+        for start in range(0, len(chunks), embedder.batch_size):
+            chunk_batch = chunks[start : start + embedder.batch_size]
+            embeddings = embedder.embed_documents([chunk.text for chunk in chunk_batch])
+            store.add(
+                index_id,
+                document,
+                chunk_batch,
+                embeddings,
+                embedding_model=embedder.model_name,
+                chunk_size=chunk_config.size_tokens,
+                overlap_percent=chunk_config.overlap_percent,
+            )
+            del embeddings
     return IndexSummary(
         index_id=index_id,
         document_id=document.document_id,

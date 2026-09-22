@@ -27,8 +27,12 @@ st.set_page_config(page_title="PDF RAG Chatbot", page_icon="📄", layout="wide"
 
 
 @st.cache_resource(show_spinner=False)
-def get_embedder(model_name: str, device: str) -> LocalEmbeddingModel:
-    return LocalEmbeddingModel(model_name=model_name, device=device)
+def get_embedder(model_name: str, device: str, batch_size: int) -> LocalEmbeddingModel:
+    return LocalEmbeddingModel(
+        model_name=model_name,
+        device=device,
+        batch_size=batch_size,
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -36,7 +40,7 @@ def get_store(path: str) -> ChromaVectorStore:
     return ChromaVectorStore(Path(path))
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=4)
 def parse_pdf(data: bytes, filename: str):
     return extract_pdf(data, filename)
 
@@ -82,7 +86,7 @@ with st.sidebar:
         accept_multiple_files=True,
         help="Each PDF must contain 10–20 pages of extractable English text.",
     )
-    chunk_size = st.slider("Chunk size (tokens)", 250, 480, 400, step=10)
+    chunk_size = st.slider("Chunk size (tokens)", 16, 480, 32, step=8)
     overlap_percent = st.slider("Chunk overlap", 5, 30, 15, step=5, format="%d%%")
     top_k = st.slider("Retrieved chunks", 2, 10, 5)
     chunk_config = ChunkConfig(chunk_size, overlap_percent)
@@ -122,8 +126,11 @@ if selected_file is not None:
                     document = parse_pdf(selected_data, selected_file.name)
                 with st.spinner("Loading the embedding model and building the index..."):
                     embedder = get_embedder(
-                        settings.embedding_model, settings.embedding_device
+                        settings.embedding_model,
+                        settings.embedding_device,
+                        settings.embedding_batch_size,
                     )
+                    st.session_state.embedding_device = embedder.device_label
                     summary = index_document(document, chunk_config, embedder, store)
                     st.session_state.summaries[summary.index_id] = summary
                     is_indexed = True
@@ -140,6 +147,11 @@ if selected_file is not None:
             st.success(f"Ready · {store.count(active_index_id)} chunks")
         else:
             st.info("Process this PDF before asking questions.")
+
+        device_label = st.session_state.get("embedding_device")
+        st.caption(
+            f"Embedding compute: {device_label or settings.embedding_device.upper()}"
+        )
 
         if not groq_key:
             st.warning("Add GROQ_API_KEY to `.env` to enable answers.")
@@ -190,7 +202,11 @@ if question:
     try:
         with st.chat_message("assistant"):
             with st.spinner("Searching the PDF..."):
-                embedder = get_embedder(settings.embedding_model, settings.embedding_device)
+                embedder = get_embedder(
+                    settings.embedding_model,
+                    settings.embedding_device,
+                    settings.embedding_batch_size,
+                )
                 language_model = GroqLanguageModel(groq_key, settings.groq_model)
                 response = answer_question(
                     index_id=active_index_id,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 
 import chromadb
@@ -32,6 +33,12 @@ class ChromaVectorStore:
         except Exception:
             return 0
 
+    def delete(self, index_id: str) -> None:
+        """Remove an incomplete index before rebuilding it."""
+
+        with suppress(Exception):
+            self._client.delete_collection(self.collection_name(index_id))
+
     def add(
         self,
         index_id: str,
@@ -57,9 +64,14 @@ class ChromaVectorStore:
                 "overlap_percent": overlap_percent,
             },
         )
+        embedding_payload = (
+            embeddings
+            if isinstance(embeddings, list)
+            else [list(vector) for vector in embeddings]
+        )
         collection.upsert(
             ids=[chunk.chunk_id for chunk in chunks],
-            embeddings=[list(vector) for vector in embeddings],
+            embeddings=embedding_payload,
             documents=[chunk.text for chunk in chunks],
             metadatas=[
                 {

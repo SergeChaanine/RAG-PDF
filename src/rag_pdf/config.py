@@ -21,12 +21,12 @@ def default_data_dir() -> Path:
 class ChunkConfig:
     """Token-aware chunking configuration."""
 
-    size_tokens: int = 400
+    size_tokens: int = 32
     overlap_percent: int = 15
 
     def __post_init__(self) -> None:
-        if not 100 <= self.size_tokens <= 500:
-            raise ValueError("Chunk size must be between 100 and 500 tokens.")
+        if not 16 <= self.size_tokens <= 500:
+            raise ValueError("Chunk size must be between 16 and 500 tokens.")
         if not 0 <= self.overlap_percent <= 40:
             raise ValueError("Chunk overlap must be between 0% and 40%.")
         if self.overlap_tokens >= self.size_tokens:
@@ -59,7 +59,8 @@ class Settings:
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-20b"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    embedding_device: str = "cpu"
+    embedding_device: str = "auto"
+    embedding_batch_size: int = 64
     data_dir: Path = field(default_factory=default_data_dir)
 
     @classmethod
@@ -76,6 +77,7 @@ class Settings:
             embedding_model=os.getenv(
                 "EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"
             ).strip(),
-            embedding_device=os.getenv("EMBEDDING_DEVICE", "cpu").strip(),
+            embedding_device=os.getenv("EMBEDDING_DEVICE", "auto").strip(),
+            embedding_batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
             data_dir=data_dir,
         )
