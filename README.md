@@ -85,7 +85,7 @@ the LLM to say when the retrieved evidence does not contain an answer.
 | `GROQ_MODEL` | `openai/gpt-oss-20b` | Generation and question-rewriting model |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local Hugging Face embedding model |
 | `EMBEDDING_DEVICE` | `cpu` | Sentence Transformers device, such as `cpu` or `cuda` |
-| `RAG_DATA_DIR` | `.rag_data/chroma` | Persistent Chroma database location |
+| `RAG_DATA_DIR` | OS user app-data directory | Optional persistent Chroma database location |
 
 ## Development checks
 

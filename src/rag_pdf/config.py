@@ -3,8 +3,18 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def default_data_dir() -> Path:
+    """Choose a user-writable, platform-appropriate persistence directory."""
+
+    if local_app_data := os.getenv("LOCALAPPDATA"):
+        return Path(local_app_data) / "RAG-PDF" / "chroma"
+    if xdg_data_home := os.getenv("XDG_DATA_HOME"):
+        return Path(xdg_data_home) / "rag-pdf" / "chroma"
+    return Path.home() / ".local" / "share" / "rag-pdf" / "chroma"
 
 
 @dataclass(frozen=True)
@@ -50,10 +60,16 @@ class Settings:
     groq_model: str = "openai/gpt-oss-20b"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_device: str = "cpu"
-    data_dir: Path = Path(".rag_data/chroma")
+    data_dir: Path = field(default_factory=default_data_dir)
 
     @classmethod
     def from_env(cls) -> Settings:
+        configured_data_dir = os.getenv("RAG_DATA_DIR", "").strip()
+        data_dir = (
+            Path(os.path.expandvars(configured_data_dir)).expanduser()
+            if configured_data_dir
+            else default_data_dir()
+        )
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
             groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip(),
@@ -61,5 +77,5 @@ class Settings:
                 "EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"
             ).strip(),
             embedding_device=os.getenv("EMBEDDING_DEVICE", "cpu").strip(),
-            data_dir=Path(os.getenv("RAG_DATA_DIR", ".rag_data/chroma")),
+            data_dir=data_dir,
         )
