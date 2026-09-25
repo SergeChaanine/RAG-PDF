@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 
-from rag_pdf.chunking import chunk_document
 from rag_pdf.config import ChunkConfig
 from rag_pdf.embeddings import LocalEmbeddingModel
 from rag_pdf.llm import GroqLanguageModel
@@ -34,6 +33,10 @@ def index_document(
     store: ChromaVectorStore,
 ) -> IndexSummary:
     index_id = build_index_id(document.document_id, embedder.model_name, chunk_config)
+    # LangChain's text splitters have a relatively expensive import tree. Delay it
+    # until a document is actually processed so the initial UI can render quickly.
+    from rag_pdf.chunking import chunk_document
+
     chunks = chunk_document(document, embedder.tokenizer, chunk_config)
     existing_count = store.count(index_id)
     reused = bool(chunks) and existing_count == len(chunks)

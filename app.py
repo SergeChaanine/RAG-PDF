@@ -88,7 +88,7 @@ with st.sidebar:
     )
     chunk_size = st.slider("Chunk size (tokens)", 16, 480, 32, step=8)
     overlap_percent = st.slider("Chunk overlap", 5, 30, 15, step=5, format="%d%%")
-    top_k = st.slider("Retrieved chunks", 2, 10, 5)
+    top_k = st.slider("Top K", 2, 10, 5)
     chunk_config = ChunkConfig(chunk_size, overlap_percent)
     st.caption(f"Calculated overlap: {chunk_config.overlap_tokens} tokens")
 
@@ -110,6 +110,13 @@ active_index_id = ""
 summary: IndexSummary | None = None
 is_indexed = False
 
+embedding_config = (
+    settings.embedding_model,
+    settings.embedding_device,
+    settings.embedding_batch_size,
+)
+embedding_ready = st.session_state.get("embedding_config") == embedding_config
+
 if selected_file is not None:
     selected_data = selected_file.getvalue()
     active_index_id = build_index_id(
@@ -119,18 +126,28 @@ if selected_file is not None:
     is_indexed = store.has_index(active_index_id)
 
     with st.sidebar:
-        process_label = "Verify index" if is_indexed else "Process selected PDF"
+        if is_indexed and not embedding_ready:
+            process_label = "Prepare for questions"
+        elif is_indexed:
+            process_label = "Verify index"
+        else:
+            process_label = "Process selected PDF"
         if st.button(process_label, type="primary", use_container_width=True):
             try:
                 with st.spinner("Validating and extracting the PDF..."):
                     document = parse_pdf(selected_data, selected_file.name)
-                with st.spinner("Loading the embedding model and building the index..."):
+                with st.spinner(
+                    "Loading the embedding model (first load may take about 25 seconds) "
+                    "and checking the index..."
+                ):
                     embedder = get_embedder(
                         settings.embedding_model,
                         settings.embedding_device,
                         settings.embedding_batch_size,
                     )
                     st.session_state.embedding_device = embedder.device_label
+                    st.session_state.embedding_config = embedding_config
+                    embedding_ready = True
                     summary = index_document(document, chunk_config, embedder, store)
                     st.session_state.summaries[summary.index_id] = summary
                     is_indexed = True
@@ -143,8 +160,12 @@ if selected_file is not None:
             except Exception as exc:
                 st.error(f"The PDF could not be processed: {exc}")
 
-        if is_indexed:
+        if is_indexed and embedding_ready:
             st.success(f"Ready · {store.count(active_index_id)} chunks")
+        elif is_indexed:
+            st.info(
+                "Saved index found. Select **Prepare for questions** before chatting."
+            )
         else:
             st.info("Process this PDF before asking questions.")
 
@@ -184,7 +205,7 @@ for message in messages:
         if message["role"] == "assistant":
             render_sources(message.get("sources", []))
 
-ready = is_indexed and bool(groq_key)
+ready = is_indexed and embedding_ready and bool(groq_key)
 question = st.chat_input(
     "Ask a question about the active PDF",
     disabled=not ready,
