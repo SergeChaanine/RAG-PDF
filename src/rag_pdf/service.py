@@ -8,8 +8,12 @@ from collections.abc import Sequence
 from rag_pdf.config import ChunkConfig
 from rag_pdf.embeddings import LocalEmbeddingModel
 from rag_pdf.llm import GroqLanguageModel
+from rag_pdf.memory_store import InMemoryVectorStore
 from rag_pdf.models import Answer, ChatTurn, ExtractedDocument, IndexSummary
+from rag_pdf.sqlite_store import SQLiteVectorStore
 from rag_pdf.vector_store import ChromaVectorStore
+
+VectorStore = ChromaVectorStore | SQLiteVectorStore | InMemoryVectorStore
 
 
 def build_index_id(
@@ -30,7 +34,7 @@ def index_document(
     document: ExtractedDocument,
     chunk_config: ChunkConfig,
     embedder: LocalEmbeddingModel,
-    store: ChromaVectorStore,
+    store: VectorStore,
 ) -> IndexSummary:
     index_id = build_index_id(document.document_id, embedder.model_name, chunk_config)
     # LangChain's text splitters have a relatively expensive import tree. Delay it
@@ -70,16 +74,27 @@ def index_document(
 
 def answer_question(
     *,
-    index_id: str,
+    index_id: str | Sequence[str],
     question: str,
     history: Sequence[ChatTurn],
     top_k: int,
     embedder: LocalEmbeddingModel,
-    store: ChromaVectorStore,
+    store: VectorStore,
     language_model: GroqLanguageModel,
 ) -> Answer:
     standalone = language_model.rewrite_question(question, history)
     query_embedding = embedder.embed_query(standalone)
-    sources = tuple(store.search(index_id, query_embedding, top_k))
+    index_ids = [index_id] if isinstance(index_id, str) else list(index_id)
+    sources = tuple(
+        sorted(
+            (
+                source
+                for current_index_id in index_ids
+                for source in store.search(current_index_id, query_embedding, top_k)
+            ),
+            key=lambda source: source.score,
+            reverse=True,
+        )[:top_k]
+    )
     answer = language_model.answer(standalone, sources)
     return Answer(text=answer, standalone_question=standalone, sources=sources)

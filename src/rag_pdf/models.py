@@ -39,6 +39,7 @@ class TextChunk:
 class SearchResult:
     chunk_id: str
     text: str
+    filename: str
     page_number: int
     chunk_index: int
     score: float

@@ -43,7 +43,7 @@ class ChunkConfig:
 class PDFRules:
     """Validation rules matching the assignment constraints."""
 
-    min_pages: int = 10
+    min_pages: int = 1
     max_pages: int = 20
     max_file_bytes: int = 20 * 1024 * 1024
     min_total_characters: int = 1_000

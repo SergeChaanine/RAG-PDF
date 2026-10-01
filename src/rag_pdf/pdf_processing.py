@@ -19,6 +19,86 @@ from rag_pdf.models import ExtractedDocument, PageText
 DetectorFactory.seed = 0
 
 
+def extract_document(
+    data: bytes,
+    filename: str,
+    rules: PDFRules | None = None,
+) -> ExtractedDocument:
+    """Extract a supported document while preserving its useful source location."""
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".pdf":
+        return extract_pdf(data, filename, rules)
+    if suffix == ".docx":
+        return extract_docx(data, filename, rules)
+    raise ValidationError("Only PDF and Word (.docx) files are accepted.")
+
+
+def extract_docx(data: bytes, filename: str, rules: PDFRules | None = None) -> ExtractedDocument:
+    """Extract Word paragraphs and tables as labeled, searchable text."""
+    from io import BytesIO
+
+    from docx import Document
+
+    rules = rules or PDFRules()
+    if not data:
+        raise ValidationError("The uploaded Word document is empty.")
+    if len(data) > rules.max_file_bytes:
+        raise ValidationError("The Word document is larger than the 20 MB limit.")
+    if Path(filename).suffix.lower() != ".docx":
+        raise ValidationError("Only modern Word (.docx) files are accepted.")
+    try:
+        word = Document(BytesIO(data))
+    except Exception as exc:
+        raise ValidationError("The uploaded file could not be opened as a Word document.") from exc
+
+    # Walk the document body in order, retaining tables as row/column labels so values
+    # stay associated with their headings during retrieval and answer generation.
+    from docx.oxml.table import CT_Tbl
+    from docx.oxml.text.paragraph import CT_P
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    blocks: list[str] = []
+    for child in word.element.body.iterchildren():
+        if isinstance(child, CT_P):
+            text = Paragraph(child, word).text.strip()
+            if text:
+                blocks.append(text)
+        elif isinstance(child, CT_Tbl):
+            table = Table(child, word)
+            rows = [[" ".join(cell.text.split()) for cell in row.cells] for row in table.rows]
+            rows = [row for row in rows if any(row)]
+            if rows:
+                headers = rows[0]
+                blocks.append("Table:")
+                if len(rows) > 1 and len(headers) > 1:
+                    for row in rows[1:]:
+                        entries = [
+                            f"{headers[i]}: {value}"
+                            for i, value in enumerate(row)
+                            if value and i < len(headers)
+                        ]
+                        blocks.append("; ".join(entries))
+                else:
+                    blocks.extend(" | ".join(row) for row in rows)
+
+    text = "\n".join(blocks)
+    character_count = len(re.sub(r"\s", "", text))
+    if character_count < max(100, rules.min_total_characters // 10):
+        raise ValidationError("Very little text could be extracted from the Word document.")
+    language, confidence = _detect_language([text])
+    if language != "en" or confidence < rules.min_english_probability:
+        raise ValidationError(
+            "The extracted document is not confidently English "
+            f"(detected {language!r}, confidence {confidence:.0%})."
+        )
+    return ExtractedDocument(
+        document_id=document_hash(data), filename=Path(filename).name,
+        page_count=1, pages=(PageText(page_number=1, text=text),),
+        language=language, language_confidence=confidence, character_count=character_count,
+    )
+
+
 def document_hash(data: bytes) -> str:
     """Return a stable ID used to isolate indexes and chat histories."""
 

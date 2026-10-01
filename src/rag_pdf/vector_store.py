@@ -96,7 +96,9 @@ class ChromaVectorStore:
         try:
             collection = self._client.get_collection(self.collection_name(index_id))
         except Exception as exc:
-            raise IndexNotFoundError("Process the selected PDF before asking questions.") from exc
+            raise IndexNotFoundError(
+                "Process the selected documents before asking questions."
+            ) from exc
 
         count = collection.count()
         if count == 0:
@@ -115,6 +117,7 @@ class ChromaVectorStore:
             SearchResult(
                 chunk_id=chunk_id,
                 text=text,
+                filename=str(metadata.get("filename", "document")),
                 page_number=int(metadata["page_number"]),
                 chunk_index=int(metadata["chunk_index"]),
                 score=1.0 - float(distance),
