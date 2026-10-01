@@ -1,0 +1,150 @@
+{
+  "question_ids": [
+    "q01",
+    "q02",
+    "q03",
+    "q04",
+    "q05",
+    "q06",
+    "q07",
+    "q08",
+    "q09",
+    "q10",
+    "q11",
+    "q12"
+  ],
+  "summary": [
+    {
+      "configuration": "reference",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "12/12",
+      "retrieval_ms": 32.599191666690785,
+      "answer_s": 4.192437908333299,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "database_qdrant",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "11/12",
+      "retrieval_ms": 42.3685583333319,
+      "answer_s": 7.485898383333317,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "database_lancedb",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "11/12",
+      "retrieval_ms": 48.90392500010421,
+      "answer_s": 7.570751416666667,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "chunks_128",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "12/12",
+      "top1_evidence_checks": "7/12",
+      "citation_checks": "10/12",
+      "retrieval_ms": 42.96640000003057,
+      "answer_s": 7.0936588583332805,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "chunks_480",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "7/12",
+      "citation_checks": "12/12",
+      "retrieval_ms": 35.50046666665215,
+      "answer_s": 8.755574141666708,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "overlap_30",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "9/12",
+      "citation_checks": "11/12",
+      "retrieval_ms": 33.65482499998507,
+      "answer_s": 7.455417316666626,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "llm_gpt_oss_120b",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "12/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "12/12",
+      "retrieval_ms": 32.599191666690785,
+      "answer_s": 4.757860374999988,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "llm_qwen",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "12/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "12/12",
+      "retrieval_ms": 32.599191666690785,
+      "answer_s": 18.862016041666646,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "embedding_e5",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "10/12",
+      "citation_checks": "12/12",
+      "retrieval_ms": 41.65634166668042,
+      "answer_s": 4.062733166666665,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "embedding_bge_m3",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "8/12",
+      "citation_checks": "10/12",
+      "retrieval_ms": 90.78851666663468,
+      "answer_s": 3.3572313749998557,
+      "quota_wait_s": 0
+    },
+    {
+      "configuration": "embedding_qwen",
+      "successful": 12,
+      "attempted": 12,
+      "evidence_checks": "12/12",
+      "answer_checks": "11/12",
+      "top1_evidence_checks": "7/12",
+      "citation_checks": "10/12",
+      "retrieval_ms": 60.15158333351186,
+      "answer_s": 8.938525399999994,
+      "quota_wait_s": 0
+    }
+  ]
+}

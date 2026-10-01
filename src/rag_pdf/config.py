@@ -11,17 +11,17 @@ def default_data_dir() -> Path:
     """Choose a user-writable, platform-appropriate persistence directory."""
 
     if local_app_data := os.getenv("LOCALAPPDATA"):
-        return Path(local_app_data) / "RAG-PDF" / "chroma"
+        return Path(local_app_data) / "RAG-PDF"
     if xdg_data_home := os.getenv("XDG_DATA_HOME"):
-        return Path(xdg_data_home) / "rag-pdf" / "chroma"
-    return Path.home() / ".local" / "share" / "rag-pdf" / "chroma"
+        return Path(xdg_data_home) / "rag-pdf"
+    return Path.home() / ".local" / "share" / "rag-pdf"
 
 
 @dataclass(frozen=True)
 class ChunkConfig:
     """Token-aware chunking configuration."""
 
-    size_tokens: int = 32
+    size_tokens: int = 256
     overlap_percent: int = 15
 
     def __post_init__(self) -> None:
@@ -74,9 +74,7 @@ class Settings:
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
             groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip(),
-            embedding_model=os.getenv(
-                "EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"
-            ).strip(),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip(),
             embedding_device=os.getenv("EMBEDDING_DEVICE", "auto").strip(),
             embedding_batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
             data_dir=data_dir,

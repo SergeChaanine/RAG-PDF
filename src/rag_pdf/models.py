@@ -9,6 +9,22 @@ from dataclasses import dataclass, field
 class PageText:
     page_number: int
     text: str
+    location: str = ""
+
+
+@dataclass(frozen=True)
+class DocumentTable:
+    table_id: str
+    headers: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+    location: str
+    page_number: int = 0
+    caption: str = ""
+
+    def render(self) -> str:
+        lines = [self.caption, " | ".join(self.headers)]
+        lines.extend(f"Row {i}: " + " | ".join(row) for i, row in enumerate(self.rows, 1))
+        return "\n".join(line for line in lines if line)
 
 
 @dataclass(frozen=True)
@@ -20,6 +36,9 @@ class ExtractedDocument:
     language: str
     language_confidence: float
     character_count: int
+    tables: tuple[DocumentTable, ...] = ()
+    warnings: tuple[str, ...] = ()
+    file_type: str = "pdf"
 
 
 @dataclass(frozen=True)
@@ -33,6 +52,11 @@ class TextChunk:
     page_chunk_index: int
     token_count: int
     start_index: int
+    location: str = ""
+    table_id: str = ""
+    row_start: int = 0
+    row_end: int = 0
+    overlap_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -42,6 +66,11 @@ class SearchResult:
     page_number: int
     chunk_index: int
     score: float
+    document_id: str = ""
+    filename: str = ""
+    location: str = ""
+    table_id: str = ""
+    table: DocumentTable | None = None
 
 
 @dataclass(frozen=True)
