@@ -12,7 +12,7 @@ if str(SOURCE_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIRECTORY))
 
 import streamlit as st
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from rag_pdf.catalog import DATABASES, EMBEDDING_MODELS, LLM_MODELS
 from rag_pdf.config import ChunkConfig, Settings
@@ -24,7 +24,8 @@ from rag_pdf.pdf_processing import document_hash
 from rag_pdf.service import ChatRepository, answer_question, index_document, library_id
 from rag_pdf.vector_store import create_store
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+ENV_FILE = Path(__file__).resolve().parent / ".env"
+load_dotenv(ENV_FILE)
 st.set_page_config(page_title="Document RAG", page_icon="📚", layout="wide")
 
 
@@ -74,11 +75,15 @@ with st.sidebar:
         index=choices.index(settings.embedding_model) if settings.embedding_model in choices else 0,
         format_func=lambda name: EMBEDDING_MODELS[name],
     )
-    llm_choices = list(dict.fromkeys([*LLM_MODELS, settings.groq_model]))
+    # Reread this default: load_dotenv retains old process values across Streamlit reruns.
+    default_answer_model = (
+        dotenv_values(ENV_FILE).get("GROQ_MODEL") or settings.groq_model
+    ).strip()
+    llm_choices = list(dict.fromkeys([*LLM_MODELS, default_answer_model]))
     answer_model = st.selectbox(
         "Answer model",
         llm_choices,
-        index=llm_choices.index(settings.groq_model),
+        index=llm_choices.index(default_answer_model),
         format_func=lambda name: LLM_MODELS.get(name, name),
     )
     chunk_size = st.slider("Chunk size (tokens)", 64, 480, 256, step=8)

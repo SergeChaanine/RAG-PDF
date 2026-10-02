@@ -44,7 +44,7 @@ class PDFRules:
     """Validation rules matching the assignment constraints."""
 
     min_pages: int = 1
-    max_pages: int = 20
+    max_pages: int = 50
     max_file_bytes: int = 20 * 1024 * 1024
     min_total_characters: int = 1_000
     min_characters_per_text_page: int = 80
@@ -57,7 +57,7 @@ class Settings:
     """Environment-backed application settings."""
 
     groq_api_key: str
-    groq_model: str = "openai/gpt-oss-20b"
+    groq_model: str = "openai/gpt-oss-120b"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_device: str = "auto"
     embedding_batch_size: int = 64
@@ -73,7 +73,7 @@ class Settings:
         )
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
-            groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip(),
+            groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip(),
             embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip(),
             embedding_device=os.getenv("EMBEDDING_DEVICE", "auto").strip(),
             embedding_batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),

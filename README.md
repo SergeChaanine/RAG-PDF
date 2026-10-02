@@ -167,7 +167,7 @@ time includes query embedding. Reused index/vector timings are not cold builds.
 | Environment variable | Default |
 |---|---|
 | `GROQ_API_KEY` | Required for answers |
-| `GROQ_MODEL` | `openai/gpt-oss-20b` |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` |
 | `EMBEDDING_DEVICE` | `auto` (CUDA if available, otherwise CPU) |
 | `EMBEDDING_BATCH_SIZE` | `64` (capped at 16 for BGE-M3 and Qwen) |
