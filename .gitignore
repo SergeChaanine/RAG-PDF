@@ -9,3 +9,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+tmp/
+study_results/**/indexes/
+study_results/**/evidence/

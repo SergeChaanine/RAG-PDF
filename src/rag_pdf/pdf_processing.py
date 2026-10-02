@@ -58,8 +58,7 @@ def extract_pdf(
     cleaned_pages = _clean_pages(raw_pages)
     character_count = sum(len(re.sub(r"\s", "", text)) for text in cleaned_pages)
     text_page_count = sum(
-        len(re.sub(r"\s", "", text)) >= rules.min_characters_per_text_page
-        for text in cleaned_pages
+        len(re.sub(r"\s", "", text)) >= rules.min_characters_per_text_page for text in cleaned_pages
     )
 
     if character_count < rules.min_total_characters:

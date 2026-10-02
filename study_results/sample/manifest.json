@@ -1,0 +1,422 @@
+{
+  "fingerprint": "1e4003b9d5c40970a26cc7804fe213430d0a054d9fb27a9959dbf7e88f61dc67",
+  "created_utc": "2026-10-01T11:16:54.037750+00:00",
+  "pipeline": "structured-v2.1",
+  "python": "3.13.5",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "versions": {
+    "sentence-transformers": "5.7.0",
+    "torch": "2.13.0+cu130",
+    "chromadb": "1.5.9",
+    "qdrant-client": "1.19.1",
+    "lancedb": "0.39.0",
+    "pymupdf": "1.28.2",
+    "python-docx": "1.2.0",
+    "groq": "0.37.1"
+  },
+  "documents": [
+    {
+      "filename": "sample_report.pdf",
+      "sha256": "6ea663c3a08fa32d6e8a49c794b3b00650d3b00acbce77726969c3094018def2"
+    }
+  ],
+  "experiments": [
+    {
+      "name": "reference",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "embedding_e5",
+      "database": "Chroma",
+      "embedding": "intfloat/e5-base-v2",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "embedding_bge_m3",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-m3",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "embedding_qwen",
+      "database": "Chroma",
+      "embedding": "Qwen/Qwen3-Embedding-0.6B",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "database_qdrant",
+      "database": "Qdrant",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "database_lancedb",
+      "database": "LanceDB",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "chunks_128",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 128,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "chunks_480",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 480,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "overlap_30",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 30,
+      "llm": "openai/gpt-oss-20b",
+      "top_k": 5
+    },
+    {
+      "name": "llm_gpt_oss_120b",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "openai/gpt-oss-120b",
+      "top_k": 5
+    },
+    {
+      "name": "llm_qwen",
+      "database": "Chroma",
+      "embedding": "BAAI/bge-small-en-v1.5",
+      "chunk_size": 256,
+      "overlap": 15,
+      "llm": "qwen/qwen3.8-27b",
+      "top_k": 5
+    }
+  ],
+  "questions": [
+    {
+      "id": "q01",
+      "question": "Who is eligible for Aurora?",
+      "expected": "Second-year engineering students.",
+      "answer_patterns": [
+        "second.year",
+        "engineering"
+      ],
+      "evidence": [
+        "second-year engineering"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q02",
+      "question": "How long does the Aurora internship last?",
+      "expected": "Eight weeks.",
+      "answer_patterns": [
+        "(?:eight|8)\\s*weeks"
+      ],
+      "evidence": [
+        "eight weeks"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q03",
+      "question": "How many supervised hours are required each week?",
+      "expected": "Ten hours.",
+      "answer_patterns": [
+        "(?:ten|10)\\s*hours"
+      ],
+      "evidence": [
+        "ten hours"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q04",
+      "question": "Who coordinates Aurora?",
+      "expected": "Maya Haddad.",
+      "answer_patterns": [
+        "Maya Haddad"
+      ],
+      "evidence": [
+        "Maya Haddad"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q05",
+      "question": "When does the 2026 internship begin?",
+      "expected": "6 July 2026.",
+      "answer_patterns": [
+        "(?:6 July|July 6).*2026"
+      ],
+      "evidence": [
+        "6 July 2026"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q06",
+      "question": "When do applications close?",
+      "expected": "15 June 2026.",
+      "answer_patterns": [
+        "(?:15 June|June 15).*2026"
+      ],
+      "evidence": [
+        "15 June 2026"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q07",
+      "question": "What is the internship capacity?",
+      "expected": "60 interns.",
+      "answer_patterns": [
+        "\\b60\\b"
+      ],
+      "evidence": [
+        "60 interns"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q08",
+      "question": "How many supervisor meetings must a student attend?",
+      "expected": "Seven of eight meetings.",
+      "answer_patterns": [
+        "(?:seven|7)",
+        "(?:eight|8)"
+      ],
+      "evidence": [
+        "seven of the eight"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q09",
+      "question": "How many applicants were there in 2024?",
+      "expected": "100 applicants.",
+      "answer_patterns": [
+        "\\b100\\b"
+      ],
+      "evidence": [
+        "2024",
+        "100"
+      ],
+      "category": "table"
+    },
+    {
+      "id": "q10",
+      "question": "How many interns completed Aurora in 2025?",
+      "expected": "54 interns.",
+      "answer_patterns": [
+        "\\b54\\b"
+      ],
+      "evidence": [
+        "2025",
+        "54"
+      ],
+      "category": "table"
+    },
+    {
+      "id": "q11",
+      "question": "How many support desk visits occurred in March 2025?",
+      "expected": "144 visits.",
+      "answer_patterns": [
+        "\\b144\\b"
+      ],
+      "evidence": [
+        "March",
+        "144"
+      ],
+      "category": "table"
+    },
+    {
+      "id": "q12",
+      "question": "Which month had the most support desk visits, and how many?",
+      "expected": "December, 252 visits.",
+      "answer_patterns": [
+        "December",
+        "\\b252\\b"
+      ],
+      "evidence": [
+        "December",
+        "252"
+      ],
+      "category": "table"
+    },
+    {
+      "id": "q13",
+      "question": "What was the total enrollment across the 2023, 2024, and 2025 cohorts?",
+      "expected": "150 students (40 + 50 + 60).",
+      "answer_patterns": [
+        "\\b150\\b"
+      ],
+      "evidence": [
+        "40",
+        "50",
+        "60"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q14",
+      "question": "How many more applicants were there in 2025 than in 2023?",
+      "expected": "40 more applicants (120 - 80).",
+      "answer_patterns": [
+        "\\b40\\b"
+      ],
+      "evidence": [
+        "120",
+        "80"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q15",
+      "question": "What was the percentage increase in enrollment from 2023 to 2025?",
+      "expected": "50 percent ((60 - 40) / 40 * 100).",
+      "answer_patterns": [
+        "50\\s*(?:%|percent)"
+      ],
+      "evidence": [
+        "40",
+        "60"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q16",
+      "question": "What was the total number of support desk visits in 2025?",
+      "expected": "2232 visits, summing all twelve months.",
+      "answer_patterns": [
+        "2,?232"
+      ],
+      "evidence": [
+        "January",
+        "December",
+        "252"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q17",
+      "question": "What was the average monthly number of support desk visits in 2025?",
+      "expected": "186 visits (2232 / 12).",
+      "answer_patterns": [
+        "\\b186\\b"
+      ],
+      "evidence": [
+        "January",
+        "December"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q18",
+      "question": "What percentage of enrolled interns responded to the 2025 survey?",
+      "expected": "80 percent (48 / 60 * 100).",
+      "answer_patterns": [
+        "80\\s*(?:%|percent)"
+      ],
+      "evidence": [
+        "48 of the 60"
+      ],
+      "category": "calculation"
+    },
+    {
+      "id": "q19",
+      "question": "Why might the participant survey suffer from bias?",
+      "expected": "Voluntary participation and nonresponse may make respondents unrepresentative.",
+      "answer_patterns": [
+        "nonresponse|non.response|voluntary"
+      ],
+      "evidence": [
+        "Nonresponse bias"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q20",
+      "question": "Do support desk visit counts represent unique students?",
+      "expected": "No. Repeat visits count separately and non-Aurora students can use the desk.",
+      "answer_patterns": [
+        "not|no\\b",
+        "repeat|several|multiple"
+      ],
+      "evidence": [
+        "same person"
+      ],
+      "category": "text"
+    },
+    {
+      "id": "q21",
+      "question": "How long is it?",
+      "expected": "The Aurora internship lasts eight weeks.",
+      "answer_patterns": [
+        "(?:eight|8)\\s*weeks"
+      ],
+      "evidence": [
+        "eight weeks"
+      ],
+      "category": "follow_up",
+      "standalone_question": "How long does the Aurora internship last?",
+      "history": [
+        {
+          "role": "user",
+          "content": "What is Aurora?"
+        },
+        {
+          "role": "assistant",
+          "content": "Aurora is a supervised internship for second-year engineering students."
+        }
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "What is the average salary of Aurora graduates?",
+      "expected": "The report does not provide this information.",
+      "answer_patterns": [
+        "could not find|not (?:provide|report|contain)|not available"
+      ],
+      "evidence": [],
+      "category": "unanswerable"
+    }
+  ],
+  "reference_tokenizer": "BAAI/bge-small-en-v1.5",
+  "retrieval_only": false,
+  "search_modes": {
+    "Chroma": "HNSW cosine",
+    "Qdrant": "local exact cosine",
+    "LanceDB": "unindexed exact cosine"
+  },
+  "scoring": "Prepared regex checks with NFKC whitespace, Markdown bold, and escaped-percent normalization. Original answers and reference patterns are unchanged."
+}

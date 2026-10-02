@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from rag_pdf.errors import ValidationError
+
 
 def resolve_embedding_device(requested: str, cuda_available: bool) -> str:
     """Resolve friendly device settings to a Sentence Transformers device."""
@@ -42,6 +44,8 @@ class LocalEmbeddingModel:
         self.model_name = model_name
         self.device = resolve_embedding_device(device, torch.cuda.is_available())
         self.batch_size = batch_size
+        if model_name in {"BAAI/bge-m3", "Qwen/Qwen3-Embedding-0.6B"}:
+            self.batch_size = min(batch_size, 16)
         if self.device == "cuda":
             torch.set_float32_matmul_precision("high")
         try:
@@ -70,6 +74,8 @@ class LocalEmbeddingModel:
         return self._model.tokenizer
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        texts = [self.format_text(text, query=False) for text in texts]
+        self.validate_lengths(texts)
         embeddings = self._model.encode(
             list(texts),
             batch_size=self.batch_size,
@@ -80,9 +86,8 @@ class LocalEmbeddingModel:
         return embeddings.tolist()
 
     def embed_query(self, query: str) -> list[float]:
-        text = query
-        if "bge-" in self.model_name.casefold():
-            text = self.BGE_QUERY_INSTRUCTION + query
+        text = self.format_text(query, query=True)
+        self.validate_lengths([text])
         embedding = self._model.encode(
             text,
             show_progress_bar=False,
@@ -90,3 +95,20 @@ class LocalEmbeddingModel:
             normalize_embeddings=True,
         )
         return embedding.tolist()
+
+    def format_text(self, text: str, *, query: bool) -> str:
+        if self.model_name == "intfloat/e5-base-v2":
+            return ("query: " if query else "passage: ") + text
+        if query and self.model_name == "BAAI/bge-small-en-v1.5":
+            return self.BGE_QUERY_INSTRUCTION + text
+        if query and self.model_name == "Qwen/Qwen3-Embedding-0.6B":
+            return "Instruct: Retrieve document passages that answer the question\nQuery: " + text
+        return text
+
+    def validate_lengths(self, texts: Sequence[str]) -> None:
+        limit = self._model.max_seq_length
+        if any(len(self.tokenizer.encode(text, add_special_tokens=True)) > limit for text in texts):
+            raise ValidationError(
+                f"An input exceeds {self.model_name}'s {limit}-token limit. "
+                "Reduce the chunk size or shorten the question; text was not truncated."
+            )
