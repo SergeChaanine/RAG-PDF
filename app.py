@@ -52,6 +52,22 @@ def render_sources(sources):
                 st.text(source["text"])
 
 
+def render_charts(charts):
+    for chart in charts or []:
+        st.markdown(f"**{chart['title']}**")
+        import pandas as pd
+
+        frame = pd.DataFrame({"__x": chart["labels"], **chart["series"]})
+        y_columns = chart["y_labels"]
+        if chart["chart_type"] == "line":
+            st.line_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        elif chart["chart_type"] == "bar":
+            st.bar_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        else:
+            st.scatter_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        st.caption(f"Source {chart['source_number']} · {chart['source_location']}")
+
+
 settings = Settings.from_env()
 groq_key = settings.groq_api_key
 if not groq_key:
@@ -59,12 +75,16 @@ if not groq_key:
         groq_key = str(st.secrets.get("GROQ_API_KEY", ""))
 
 st.title("Document RAG")
-st.caption("Ask across your PDFs and Word documents, including native tables and statistics.")
+st.caption(
+    "Ask across PDFs, Word, Excel, and PowerPoint files, including native tables and statistics."
+)
 
 with st.sidebar:
     st.header("Document library")
     uploaded = st.file_uploader(
-        "Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True
+        "Upload PDF, Word, Excel, or PowerPoint files",
+        type=["pdf", "docx", "xlsx", "pptx"],
+        accept_multiple_files=True,
     )
     backend = st.selectbox("Vector database", DATABASES)
     choices = list(EMBEDDING_MODELS)
@@ -73,6 +93,11 @@ with st.sidebar:
         choices,
         index=choices.index(settings.embedding_model) if settings.embedding_model in choices else 0,
         format_func=lambda name: EMBEDDING_MODELS[name],
+    )
+    st.caption(
+        "For Arabic and mixed Arabic/English files, select a multilingual embedding model "
+        "(BGE-M3 or Qwen3). Reprocess after changing it. Scanned/image-only PDFs need OCR "
+        "and are not currently read."
     )
     llm_choices = list(dict.fromkeys([*LLM_MODELS, settings.groq_model]))
     answer_model = st.selectbox(
@@ -186,6 +211,7 @@ with chat_tab:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
                 render_sources(message.get("sources", []))
+                render_charts(message.get("charts", []))
                 if message.get("standalone_question"):
                     st.caption(f"Searched for: {message['standalone_question']}")
     else:
@@ -225,12 +251,14 @@ with chat_tab:
                 sources = [asdict(source) for source in response.sources]
                 st.markdown(response.text)
                 render_sources(sources)
+                render_charts(response.charts)
                 st.caption(f"Searched for: {response.standalone_question}")
                 messages.append(
                     {
                         "role": "assistant",
                         "content": response.text,
                         "sources": sources,
+                        "charts": list(response.charts),
                         "standalone_question": response.standalone_question,
                         "model": answer_model,
                     }

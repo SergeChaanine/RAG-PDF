@@ -22,7 +22,10 @@ class DocumentTable:
     caption: str = ""
 
     def render(self) -> str:
-        lines = [self.caption, " | ".join(self.headers)]
+        numbered_headers = " | ".join(
+            f"Column {i}: {header}" for i, header in enumerate(self.headers, 1)
+        )
+        lines = [self.caption, numbered_headers]
         lines.extend(f"Row {i}: " + " | ".join(row) for i, row in enumerate(self.rows, 1))
         return "\n".join(line for line in lines if line)
 
@@ -84,6 +87,7 @@ class Answer:
     text: str
     standalone_question: str
     sources: tuple[SearchResult, ...] = field(default_factory=tuple)
+    charts: tuple[dict, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

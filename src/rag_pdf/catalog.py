@@ -12,4 +12,4 @@ LLM_MODELS = {
     "qwen/qwen3.8-27b": "Qwen 3.8 27B (preview)",
 }
 DATABASES = ("Chroma", "Qdrant", "LanceDB")
-PIPELINE_VERSION = "structured-v2.1"
+PIPELINE_VERSION = "structured-v2.2-arabic-office"

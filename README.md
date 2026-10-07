@@ -1,8 +1,9 @@
 # Document RAG chatbot
 
-Ask grounded, conversational questions across a library of PDFs and Word `.docx`
-documents. Native text and tables are indexed locally; Groq generates answers with
-numbered citations identifying the filename and source location.
+Ask grounded, conversational questions across PDFs, Word `.docx`, Excel `.xlsx`, and
+PowerPoint `.pptx` documents. Native text, tables, worksheet values, and PowerPoint chart
+series are indexed locally; Groq generates answers with numbered citations identifying
+the filename and source location.
 
 ## Start
 
@@ -11,6 +12,7 @@ python -m pip install -r requirements.txt
 # Only for a new setup; preserve your existing .env and API key.
 Copy-Item .env.example .env
 python -m streamlit run app.py
+python -m streamlit run app.py --server.fileWatcherType none
 ```
 
 Set `GROQ_API_KEY` in `.env`. Existing installations only need the dependency update
@@ -18,7 +20,7 @@ and a Streamlit restart. For development, install `requirements-dev.txt` too.
 
 ## Document library and conversation
 
-1. Upload one or more PDF or DOCX files. Identical uploads are deduplicated.
+1. Upload one or more PDF, DOCX, XLSX, or PPTX files. Identical uploads are deduplicated.
 2. Choose the database, embedding model, chunk size, and overlap.
 3. Select **Process all documents**. All successfully processed uploads are active;
    failed files are shown in **Library and extraction** and excluded from retrieval.
@@ -39,12 +41,17 @@ all turns remain visible in the saved conversation.
 This is a local single-user application. There is no multi-user authentication or
 per-user storage isolation; do not deploy it as a shared service unchanged.
 
-## Native text and tables
+## Native text, tables, and Arabic
 
 - PDF extraction uses PyMuPDF to identify tables and preserve page locations. Table
   cells are excluded from prose to avoid indexing the same values twice.
 - Word extraction uses `python-docx` for paragraphs, headings, and tables. Citations
   use heading/paragraph/table locations; Word page numbers are not fabricated.
+- Excel extraction reads cell values and cached formula results by worksheet. Each
+  worksheet is represented as a table using its first populated row as the header.
+  Formulas without a saved result are retained as formula text and reported as a warning.
+- PowerPoint extraction reads slide text, native tables, speaker notes, and data series
+  from native charts. Slide numbers are retained in source locations.
 - Table chunks contain whole rows with repeated column headers. Row overlap is
   bounded by the requested overlap budget, so actual overlap may be lower.
 - Complete retrieved tables are expanded into answer context when they fit the
@@ -54,20 +61,28 @@ per-user storage isolation; do not deploy it as a shared service unchanged.
   are unavailable for those excerpts. Very wide rows that exceed the chunk size
   cause a clear processing error rather than silent truncation.
 
-Supported inputs: native `.pdf` and `.docx`, up to 20 MB each; PDFs up to 200 pages.
-Scans, image-only charts, and legacy `.doc` files are outside the initial scope.
-Numeric tables and short documents are accepted without an English-only language
-filter. English-only embeddings remain best suited to English documents.
-Unusual merged headers, borderless PDF tables, and tables continuing across pages
-need extraction-preview review; automatically detected PDF tables are individual
-page tables, not guaranteed reconstructions of multi-page tables.
+Supported inputs: native-text `.pdf`, `.docx`, `.xlsx`, and `.pptx`, up to 20 MB each;
+PDFs up to 200 pages, Excel workbooks up to 50 sheets and 500,000 cells per sheet.
+Arabic and mixed Arabic/English content is preserved as Unicode in extraction. Select
+BGE-M3 or Qwen3 multilingual embeddings for Arabic retrieval; English embedding models
+are not recommended for Arabic. The default embedding is BGE-M3. Image-only/scanned
+PDFs, text embedded only in pictures, legacy `.doc`/`.xls`/`.ppt`, and OCR are not
+supported. Excel uses the first populated worksheet row as the header. Unusual merged
+headers, borderless PDF tables, and tables continuing across pages need extraction-preview
+review; detected PDF tables are individual page tables, not guaranteed multi-page tables.
+
+When the answer model identifies a useful visualization in a complete retrieved table,
+it requests a chart using one-based source column numbers. The app validates those columns
+and plots only values parsed from the cited table. Invalid or nonnumeric requests are
+rejected. Charts appear in the conversation with the table's source location. The model
+may decide that a table does not support a useful chart and answer without one.
 
 ## Choices
 
 | Component | Options |
 |---|---|
 | Vector storage | Chroma, Qdrant local mode, LanceDB embedded |
-| Embeddings | BGE-small English, E5-base-v2, BGE-M3, Qwen3-Embedding-0.6B |
+| Embeddings | BGE-M3 multilingual (default), Qwen3-Embedding-0.6B multilingual, BGE-small English, E5-base-v2 English |
 | Answer LLM | GPT-OSS 20B, GPT-OSS 120B, Qwen 3.8 27B |
 | Default chunking | 256 tokens with 15% overlap |
 | Overlap choices | 15% and 30% |
@@ -90,7 +105,7 @@ PDF-only collections are left in place and are not reused by the new pipeline.
 ## Focused comparison study
 
 Run comparisons with the command-line runner described below. It supports the
-synthetic sample or your own PDF/DOCX library with a reference-question JSON file.
+synthetic sample or your own supported document library with a reference-question JSON file.
 The Streamlit interface contains Chat and Library and extraction tabs.
 
 | Configuration | Change from reference |
@@ -168,7 +183,7 @@ time includes query embedding. Reused index/vector timings are not cold builds.
 |---|---|
 | `GROQ_API_KEY` | Required for answers |
 | `GROQ_MODEL` | `openai/gpt-oss-20b` |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` |
+| `EMBEDDING_MODEL` | `BAAI/bge-m3` |
 | `EMBEDDING_DEVICE` | `auto` (CUDA if available, otherwise CPU) |
 | `EMBEDDING_BATCH_SIZE` | `64` (capped at 16 for BGE-M3 and Qwen) |
 | `RAG_DATA_DIR` | `%LOCALAPPDATA%/RAG-PDF` on Windows; user data directory elsewhere |

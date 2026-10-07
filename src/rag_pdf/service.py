@@ -137,7 +137,13 @@ def answer_question(
         return Answer(standalone.removeprefix("CLARIFY:").strip(), standalone)
     sources = search_library(index_ids, embedder.embed_query(standalone), top_k, store)
     sources = expand_tables(sources, documents)
-    return Answer(language_model.answer(standalone, sources), standalone, sources)
+    text = language_model.answer(standalone, sources)
+    return Answer(
+        text,
+        standalone,
+        sources,
+        tuple(getattr(language_model, "last_charts", ())),
+    )
 
 
 class ChatRepository:

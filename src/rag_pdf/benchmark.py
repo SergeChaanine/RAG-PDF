@@ -160,6 +160,8 @@ def run_study(
         "lancedb",
         "pymupdf",
         "python-docx",
+        "openpyxl",
+        "python-pptx",
         "groq",
     ):
         versions[package] = importlib.metadata.version(package)
