@@ -74,6 +74,8 @@ class SearchResult:
     location: str = ""
     table_id: str = ""
     table: DocumentTable | None = None
+    retrieval_method: str = "semantic"
+    keyword_score: float = 0.0
 
 
 @dataclass(frozen=True)

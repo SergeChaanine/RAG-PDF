@@ -19,6 +19,9 @@ def test_resume_preserves_successes_and_retries_only_failed_answers(tmp_path, mo
             self.model_name = model_name
 
     class LLM:
+        def retrieval_queries(self, question, filenames):
+            return [question]
+
         def __init__(self, key, model):
             self.model = model
             self.last_usage = {}
@@ -27,7 +30,7 @@ def test_resume_preserves_successes_and_retries_only_failed_answers(tmp_path, mo
         def rewrite_question(self, question, history):
             return question
 
-        def answer(self, question, sources):
+        def answer(self, question, sources, *, original_question=None, visualization="auto"):
             calls.append(self.model)
             if self.model in fail_once:
                 fail_once.remove(self.model)

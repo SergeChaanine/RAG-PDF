@@ -14,6 +14,7 @@ from rag_pdf.models import DocumentTable, ExtractedDocument, PageText
 from rag_pdf.pdf_processing import document_hash
 
 MAX_BYTES = 20 * 1024 * 1024
+MAX_WORKSHEET_CELLS = 500_000
 
 
 def make_table(table_id, data, location, page_number=0, caption="", headers=None):
@@ -228,18 +229,29 @@ def _xlsx(data):
     workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     formulas = load_workbook(io.BytesIO(data), read_only=True, data_only=False)
     pages, tables, warnings = [], [], []
-    if len(workbook.worksheets) > 50:
-        raise ValidationError("Excel workbooks are limited to 50 worksheets.")
     try:
+        if len(workbook.worksheets) > 50:
+            raise ValidationError("Excel workbooks are limited to 50 worksheets.")
         for sheet, formula_sheet in zip(workbook.worksheets, formulas.worksheets, strict=True):
-            if sheet.max_row * max(sheet.max_column, 1) > 500_000:
+            # Valid streaming-generated XLSX files may omit <dimension>; their
+            # read-only max_row/max_column are None. Bound the actual stream too.
+            if (sheet.max_row or 0) * max(sheet.max_column or 0, 1) > MAX_WORKSHEET_CELLS:
                 raise ValidationError(
-                    f"Worksheet {sheet.title} exceeds the 500,000-cell processing limit."
+                    f"Worksheet {sheet.title} exceeds the {MAX_WORKSHEET_CELLS:,}-cell "
+                    "processing limit."
                 )
             cached_rows = sheet.iter_rows(values_only=False)
             formula_rows = formula_sheet.iter_rows(values_only=False)
-            matrix, formula_without_cache = [], 0
-            for cached_row, formula_row in zip(cached_rows, formula_rows, strict=True):
+            matrix, row_numbers, formula_without_cache, width = [], [], 0, 0
+            for row_number, (cached_row, formula_row) in enumerate(
+                zip(cached_rows, formula_rows, strict=True), 1
+            ):
+                width = max(width, len(cached_row), len(formula_row))
+                if row_number * width > MAX_WORKSHEET_CELLS:
+                    raise ValidationError(
+                        f"Worksheet {sheet.title} exceeds the {MAX_WORKSHEET_CELLS:,}-cell "
+                        "processing limit."
+                    )
                 cells = []
                 for cached, formula in zip(cached_row, formula_row, strict=True):
                     value = cached.value
@@ -251,23 +263,52 @@ def _xlsx(data):
                     cells.pop()
                 if any(cells):
                     matrix.append(cells)
+                    row_numbers.append(row_number)
             if not matrix:
                 continue
             width = max(map(len, matrix))
             matrix = [row + [""] * (width - len(row)) for row in matrix]
             location = f"Worksheet {sheet.title}"
             pages.append(PageText(0, f"Excel worksheet: {sheet.title}", location))
-            if len(matrix) >= 2:
+            # Keep report titles/notes as prose; the first populated row with
+            # multiple fields is the table header, not a merged title in A1.
+            header_index = next(
+                (i for i, row in enumerate(matrix) if sum(bool(cell) for cell in row) >= 2),
+                None,
+            )
+            if header_index is None and width == 1 and len(matrix) > 1:
+                header_index = 0
+            if header_index is not None and header_index < len(matrix) - 1:
+                for row_number, row in zip(
+                    row_numbers[:header_index], matrix[:header_index], strict=True
+                ):
+                    pages.append(
+                        PageText(
+                            0,
+                            " | ".join(cell for cell in row if cell),
+                            f"{location}, row {row_number}",
+                        )
+                    )
+                caption = "\n".join(
+                    " | ".join(cell for cell in row if cell) for row in matrix[:header_index]
+                )
                 table = make_table(
                     f"{sheet.title}-t1",
-                    matrix,
-                    f"{location}, rows 1-{len(matrix)}",
-                    caption=f"Excel workbook worksheet: {sheet.title}",
+                    matrix[header_index:],
+                    f"{location}, rows {row_numbers[header_index]}-{row_numbers[-1]}",
+                    caption=f"Excel workbook worksheet: {sheet.title}\n{caption}".strip(),
                 )
                 if table:
                     tables.append(table)
             else:
-                pages.append(PageText(0, " | ".join(matrix[0]), f"{location}, row 1"))
+                for row_number, row in zip(row_numbers, matrix, strict=True):
+                    pages.append(
+                        PageText(
+                            0,
+                            " | ".join(cell for cell in row if cell),
+                            f"{location}, row {row_number}",
+                        )
+                    )
             if formula_without_cache:
                 warnings.append(
                     f"{sheet.title}: {formula_without_cache} formula cells have no saved result; "

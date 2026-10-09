@@ -86,15 +86,19 @@ class LocalEmbeddingModel:
         return embeddings.tolist()
 
     def embed_query(self, query: str) -> list[float]:
-        text = self.format_text(query, query=True)
-        self.validate_lengths([text])
-        embedding = self._model.encode(
-            text,
+        return self.embed_queries([query])[0]
+
+    def embed_queries(self, queries: Sequence[str]) -> list[list[float]]:
+        texts = [self.format_text(query, query=True) for query in queries]
+        self.validate_lengths(texts)
+        embeddings = self._model.encode(
+            texts,
+            batch_size=self.batch_size,
             show_progress_bar=False,
             convert_to_numpy=True,
             normalize_embeddings=True,
         )
-        return embedding.tolist()
+        return embeddings.tolist()
 
     def format_text(self, text: str, *, query: bool) -> str:
         if self.model_name == "intfloat/e5-base-v2":

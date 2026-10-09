@@ -23,10 +23,17 @@ and a Streamlit restart. For development, install `requirements-dev.txt` too.
 1. Upload one or more PDF, DOCX, XLSX, or PPTX files. Identical uploads are deduplicated.
 2. Choose the database, embedding model, chunk size, and overlap.
 3. Select **Process all documents**. All successfully processed uploads are active;
-   failed files are shown in **Library and extraction** and excluded from retrieval.
+   failed files are shown in **Chat** and **Library and extraction**, with an explicit
+   searchable-file count, and excluded from retrieval.
 4. Inspect the extracted text and tables in that tab before trusting a new layout.
-5. Ask a question in **Chat**. Search runs over every active document and globally
-   ranks the matching chunks. An answer may cite several documents.
+5. Ask a question in **Chat**. Search combines semantic similarity with keyword
+   matches in text, filenames, worksheet names, and column headers across every active
+   document. Top K reserves one result per document when enough slots are available,
+   reserves a second distinct result per document when there are at least twice as many
+   slots as documents, then fills remaining slots by combined relevance, avoiding
+   duplicate table chunks.
+   An answer may cite several documents. If there are more documents than slots,
+   the documents with the best combined matches are selected.
 6. Ask a follow-up such as “How long is it?”. A rewrite step uses recent conversation
    turns to recover the subject before searching. Ambiguous references can trigger
    a clarification question instead of a search.
@@ -38,6 +45,27 @@ Changing the document set starts a separate conversation. **Clear conversation**
 clears the saved history for that set. The last 20 turns are supplied to rewriting;
 all turns remain visible in the saved conversation.
 
+Answers follow the language of the original question: English questions receive English
+answers, and Arabic questions receive Arabic answers, regardless of the source language or
+the rewritten retrieval query. The model translates source evidence without changing the
+facts or citations. Answers in the wrong language receive one corrective retry.
+For retrieval, the resolved question is also translated between Arabic and English. Both
+queries search every active document through semantic and keyword search, and their results
+are merged before selecting Top K. This lets Arabic questions match English worksheet headers
+and English questions match Arabic PDF text. In chat, follow-up rewriting and translation
+share one short model request. Translation and search preparation use bounded in-memory
+caches scoped by question, document names, and conversation context. Query embeddings are
+batched, and the app reuses model clients and loaded embedding models. The first model load
+is slower than subsequent questions. Chat shows elapsed answer time. These optimizations
+do not change the answer language. Retrieval-only benchmarks skip model translation.
+Standalone questions bypass conversation rewriting, including questions naming a project
+that never appeared in history or filenames. The planner resolves references, not whether
+document facts exist; missing evidence is determined after searching. Genuine ambiguous
+follow-ups can still request clarification, without displaying a fictitious search query.
+
+After updating from a version with semantic-only retrieval, select **Process all documents**
+once to build the local keyword indexes. Existing vector indexes can still be reused.
+
 This is a local single-user application. There is no multi-user authentication or
 per-user storage isolation; do not deploy it as a shared service unchanged.
 
@@ -48,7 +76,10 @@ per-user storage isolation; do not deploy it as a shared service unchanged.
 - Word extraction uses `python-docx` for paragraphs, headings, and tables. Citations
   use heading/paragraph/table locations; Word page numbers are not fabricated.
 - Excel extraction reads cell values and cached formula results by worksheet. Each
-  worksheet is represented as a table using its first populated row as the header.
+  worksheet is represented as a table using its first row with multiple fields as the
+  header; preceding report titles and notes are retained as prose and table context.
+  Single-column sheets keep their first populated row as the header. Workbooks without
+  worksheet dimension metadata are supported, with size limits checked during reading.
   Formulas without a saved result are retained as formula text and reported as a warning.
 - PowerPoint extraction reads slide text, native tables, speaker notes, and data series
   from native charts. Slide numbers are retained in source locations.
@@ -60,6 +91,8 @@ per-user storage isolation; do not deploy it as a shared service unchanged.
 - Large tables that cannot be expanded are marked partial. Whole-table calculations
   are unavailable for those excerpts. Very wide rows that exceed the chunk size
   cause a clear processing error rather than silent truncation.
+- The answer context budget is shared evenly across retrieved documents, so a large
+  table in one file cannot crowd out the evidence from another file.
 
 Supported inputs: native-text `.pdf`, `.docx`, `.xlsx`, and `.pptx`, up to 20 MB each;
 PDFs up to 200 pages, Excel workbooks up to 50 sheets and 500,000 cells per sheet.
@@ -67,15 +100,38 @@ Arabic and mixed Arabic/English content is preserved as Unicode in extraction. S
 BGE-M3 or Qwen3 multilingual embeddings for Arabic retrieval; English embedding models
 are not recommended for Arabic. The default embedding is BGE-M3. Image-only/scanned
 PDFs, text embedded only in pictures, legacy `.doc`/`.xls`/`.ppt`, and OCR are not
-supported. Excel uses the first populated worksheet row as the header. Unusual merged
+supported. Excel skips leading report titles when identifying table headers. Unusual merged
 headers, borderless PDF tables, and tables continuing across pages need extraction-preview
 review; detected PDF tables are individual page tables, not guaranteed multi-page tables.
+
+Answers involving statistics are instructed to use Markdown tables automatically, including
+counts, percentages, averages, comparisons, trends, and statistical concepts. Tables use
+descriptive headers, preserve units and time periods, and cite sources in each factual row.
+Statistics may come from document prose or extracted tables; missing evidence still produces
+the normal not-found response.
 
 When the answer model identifies a useful visualization in a complete retrieved table,
 it requests a chart using one-based source column numbers. The app validates those columns
 and plots only values parsed from the cited table. Invalid or nonnumeric requests are
 rejected. Charts appear in the conversation with the table's source location. The model
-may decide that a table does not support a useful chart and answer without one.
+may decide that a table does not support a useful chart and answer without one. Charts
+supplement the statistical answer table.
+Normal document answers do not include plotting code or chart configuration JSON. Charts
+are rendered only through the validated chart tool; when it cannot be used, the answer
+keeps its table and explanation. Code is included only when the question requests it.
+
+The **Statistical figures** setting offers **Automatic**, **Histogram**, **Box plot**,
+**Summary cards**, **Scatter plot**, **Line chart**, **Bar chart**, and **Tables only**.
+Automatic chooses a suitable format for the statistical question. A selected format is
+used when the retrieved data supports it; figures supplement the answer table. Tables only
+disables figures while retaining table calculations. Histograms show frequencies, box plots
+show quartiles and outliers using 1.5-IQR whiskers, and summary cards report the observation
+count, mean, median, minimum, maximum, and sample standard deviation.
+These three formats use one numeric column with at least two observations from a complete
+source table. Totals and blank values are excluded, selected row numbers can restrict the
+period, and invalid text values are rejected. The source, observation count, and exclusions
+are shown with the figure. Statistical figures persist with the conversation. PDF prose
+without an extracted numeric table still receives a text/table answer.
 
 ## Choices
 
