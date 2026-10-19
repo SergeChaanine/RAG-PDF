@@ -22,7 +22,13 @@ from rag_pdf.document_processing import extract_document
 from rag_pdf.embeddings import LocalEmbeddingModel
 from rag_pdf.llm import GroqLanguageModel
 from rag_pdf.models import ChatTurn
-from rag_pdf.service import expand_tables, index_document, library_id, search_library
+from rag_pdf.service import (
+    RETRIEVAL_VERSION,
+    expand_tables,
+    index_document,
+    library_id,
+    retrieve_sources,
+)
 from rag_pdf.vector_store import create_store
 
 REFERENCE_TOKENIZER = "BAAI/bge-small-en-v1.5"
@@ -160,6 +166,8 @@ def run_study(
         "lancedb",
         "pymupdf",
         "python-docx",
+        "openpyxl",
+        "python-pptx",
         "groq",
     ):
         versions[package] = importlib.metadata.version(package)
@@ -303,6 +311,8 @@ def run_study(
                     retrieval_key = hashlib.sha256(
                         json.dumps(
                             [
+                                RETRIEVAL_VERSION,
+                                retrieval_only,
                                 experiment.database,
                                 experiment.embedding,
                                 experiment.chunk_size,
@@ -345,11 +355,14 @@ def run_study(
                             )
                         rewrite_seconds = time.perf_counter() - started
                         started = time.perf_counter()
-                        hits = search_library(
-                            [s.index_id for s in summaries],
-                            embedder.embed_query(standalone),
-                            experiment.top_k,
-                            store,
+                        hits = retrieve_sources(
+                            index_ids=[s.index_id for s in summaries],
+                            documents=documents,
+                            question=standalone,
+                            top_k=experiment.top_k,
+                            embedder=embedder,
+                            store=store,
+                            language_model=None if retrieval_only else rewrite_model,
                         )
                         retrieval_seconds = time.perf_counter() - started
                         raw_sources = [asdict(hit) for hit in hits]
@@ -368,7 +381,12 @@ def run_study(
                         )
                         reused_evidence = False
                     started = time.perf_counter()
-                    answer = language_model.answer(standalone, sources) if language_model else ""
+                    answer = (
+                        language_model.answer(
+                            standalone, sources, original_question=question["question"]
+                        )
+                        if language_model else ""
+                    )
                     answer_seconds = time.perf_counter() - started
                     quota_wait = getattr(language_model, "last_rate_limit_wait_seconds", 0.0)
                     row.update(

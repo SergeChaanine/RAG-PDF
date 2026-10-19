@@ -37,6 +37,9 @@ def test_interrupted_index_is_rebuilt_without_duplicate_rows(tmp_path, backend):
 
 def test_ambiguous_follow_up_asks_without_searching():
     class AmbiguousLLM:
+        def prepare_search(self, question, history, filenames):
+            return self.rewrite_question(question, history), []
+
         def rewrite_question(self, question, history):
             return "CLARIFY: Do you mean the internship or the workshop?"
 

@@ -31,6 +31,92 @@ def test_qualitative_question_does_not_offer_table_calculator():
     assert "tools" not in model._client.chat.completions.create.call_args.kwargs
 
 
+def test_automatically_offers_chart_tools_for_numeric_tables_without_chart_request():
+    model = model_with_client()
+    model._client.chat.completions.create.return_value = response(
+        "The figures increased. [Source 1]"
+    )
+    source = SearchResult(
+        "a",
+        "Monthly revenue",
+        1,
+        0,
+        1,
+        table=DocumentTable(
+            "t", ("Month", "Revenue"), (("January", "100"), ("February", "125")), "p. 1"
+        ),
+    )
+
+    model.answer("Tell me about the figures.", [source])
+
+    request = model._client.chat.completions.create.call_args.kwargs
+    assert [tool["function"]["name"] for tool in request["tools"]] == [
+        "calculate_table",
+        "plot_table",
+    ]
+    assert "even when the user did not ask for a chart" in request["messages"][0]["content"]
+
+
+def test_clear_trend_question_forces_a_chart_without_chart_wording():
+    model = model_with_client()
+    source = SearchResult(
+        "a",
+        "Monthly revenue",
+        1,
+        0,
+        1,
+        table=DocumentTable(
+            "t", ("Month", "Revenue"), (("January", "100"), ("February", "125")), "p. 1"
+        ),
+    )
+    call = SimpleNamespace(
+        id="plot-1",
+        function=SimpleNamespace(
+            name="plot_table",
+            arguments=(
+                '{"source_number":1,"x_column":1,"y_columns":[2],'
+                '"chart_type":"line","title":"Revenue by month"}'
+            ),
+        ),
+    )
+    tool_message = SimpleNamespace(
+        content=None,
+        tool_calls=[call],
+        model_dump=lambda exclude_none: {"role": "assistant", "tool_calls": []},
+    )
+    model._client.chat.completions.create.side_effect = [
+        SimpleNamespace(choices=[SimpleNamespace(message=tool_message)], usage=None),
+        response("Revenue rose from January to February. [Source 1]"),
+    ]
+
+    answer = model.answer("How did revenue change over the months of 2025?", [source])
+
+    assert answer == "Revenue rose from January to February. [Source 1]"
+    assert len(model.last_charts) == 1
+    first_request = model._client.chat.completions.create.call_args_list[0].kwargs
+    assert first_request["tool_choice"] == "required"
+    assert [tool["function"]["name"] for tool in first_request["tools"]] == ["plot_table"]
+
+
+def test_non_numeric_table_does_not_offer_chart_tools():
+    model = model_with_client()
+    model._client.chat.completions.create.return_value = response(
+        "Several plans are listed. [Source 1]"
+    )
+    source = SearchResult(
+        "a",
+        "Plans",
+        1,
+        0,
+        1,
+        table=DocumentTable("t", ("Plan", "Owner"), (("A", "Sam"), ("B", "Lee")), "p. 1"),
+    )
+
+    model.answer("Tell me about the plans.", [source])
+
+    assert "tools" not in model._client.chat.completions.create.call_args.kwargs
+
+
 def test_invalid_tool_request_gets_one_corrective_retry():
     model = model_with_client()
     create = model._client.chat.completions.create

@@ -42,6 +42,9 @@ class FakeEmbedder:
         self.last_query = text
         return [1.0, 0.0] if "internship" in text else [0.0, 1.0]
 
+    def embed_queries(self, texts):
+        return [self.embed_query(text) for text in texts]
+
 
 def document(name="program.pdf", text="The internship lasts eight weeks."):
     return ExtractedDocument(name, name, 1, (PageText(1, text, "p. 1"),), "en", 1, len(text))
@@ -142,12 +145,20 @@ def test_follow_up_rewritten_before_retrieval_and_cited(tmp_path):
     summary = index_document(doc, ChunkConfig(), embedder, store)
 
     class LLM:
+        def prepare_search(self, question, history, filenames):
+            standalone = self.rewrite_question(question, history)
+            return standalone, self.retrieval_queries(standalone, filenames)
+
+        def retrieval_queries(self, question, filenames):
+            return [question]
+
         def rewrite_question(self, question, history):
             assert question == "How long is it?"
             assert history[0].content == "Tell me about the internship."
             return "How long is the internship?"
 
-        def answer(self, question, sources):
+        def answer(self, question, sources, *, original_question=None, visualization="auto"):
+            assert original_question == "How long is it?"
             assert sources[0].filename == "program.pdf"
             return "Eight weeks. [Source 1]"
 

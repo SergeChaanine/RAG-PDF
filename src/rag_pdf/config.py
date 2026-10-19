@@ -58,7 +58,7 @@ class Settings:
 
     groq_api_key: str
     groq_model: str = "openai/gpt-oss-20b"
-    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
     embedding_batch_size: int = 64
     data_dir: Path = field(default_factory=default_data_dir)
@@ -74,7 +74,7 @@ class Settings:
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
             groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip(),
-            embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip(),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3").strip(),
             embedding_device=os.getenv("EMBEDDING_DEVICE", "auto").strip(),
             embedding_batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
             data_dir=data_dir,

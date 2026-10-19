@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
@@ -14,7 +15,7 @@ if str(SOURCE_DIRECTORY) not in sys.path:
 import streamlit as st
 from dotenv import load_dotenv
 
-from rag_pdf.catalog import DATABASES, EMBEDDING_MODELS, LLM_MODELS
+from rag_pdf.catalog import DATABASES, EMBEDDING_MODELS, LLM_MODELS, PIPELINE_VERSION
 from rag_pdf.config import ChunkConfig, Settings
 from rag_pdf.document_processing import extract_document
 from rag_pdf.embeddings import LocalEmbeddingModel
@@ -23,6 +24,7 @@ from rag_pdf.models import ChatTurn
 from rag_pdf.pdf_processing import document_hash
 from rag_pdf.service import ChatRepository, answer_question, index_document, library_id
 from rag_pdf.vector_store import create_store
+from rag_pdf.visuals import VISUALIZATION_MODES, distribution_spec, summary_metrics
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 st.set_page_config(page_title="Document RAG", page_icon="📚", layout="wide")
@@ -38,8 +40,13 @@ def get_store(backend, path):
     return create_store(backend, Path(path))
 
 
+@st.cache_resource(show_spinner=False, max_entries=4)
+def get_language_model(api_key, model):
+    return GroqLanguageModel(api_key, model)
+
+
 @st.cache_data(show_spinner=False, max_entries=32)
-def parse_document(data, filename):
+def parse_document(data, filename, pipeline_version):
     return extract_document(data, filename)
 
 
@@ -48,8 +55,46 @@ def render_sources(sources):
         with st.expander("Sources and retrieved evidence"):
             for i, source in enumerate(sources, 1):
                 st.markdown(f"**[Source {i}] {source['filename']} · {source['location']}**")
-                st.caption(f"Cosine similarity: {source['score']:.3f}")
+                method = source.get("retrieval_method", "semantic")
+                if method == "keyword":
+                    st.caption("Retrieved by keyword search")
+                else:
+                    st.caption(f"Retrieval: {method} · Cosine similarity: {source['score']:.3f}")
                 st.text(source["text"])
+
+
+def render_charts(charts):
+    for chart in charts or []:
+        st.markdown(f"**{chart['title']}**")
+        if chart["chart_type"] in {"histogram", "box", "summary"}:
+            st.caption(chart["value_label"])
+            if chart["chart_type"] == "summary":
+                columns = st.columns(3)
+                for i, (label, value) in enumerate(summary_metrics(chart)):
+                    columns[i % 3].metric(label, value)
+            else:
+                st.vega_lite_chart(distribution_spec(chart), width="stretch")
+            arabic = chart.get("language") == "Arabic"
+            count = len(chart["values"])
+            st.caption(f"{count} مشاهدات" if arabic else f"{count} observations")
+            if chart.get("skipped_rows"):
+                st.caption(
+                    "تم استبعاد صفوف الإجمالي والقيم الفارغة."
+                    if arabic else "Total rows and blank values were excluded."
+                )
+            st.caption(f"Source {chart['source_number']} · {chart['source_location']}")
+            continue
+        import pandas as pd
+
+        frame = pd.DataFrame({"__x": chart["labels"], **chart["series"]})
+        y_columns = chart["y_labels"]
+        if chart["chart_type"] == "line":
+            st.line_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        elif chart["chart_type"] == "bar":
+            st.bar_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        else:
+            st.scatter_chart(frame, x="__x", y=y_columns, x_label=chart["x_label"])
+        st.caption(f"Source {chart['source_number']} · {chart['source_location']}")
 
 
 settings = Settings.from_env()
@@ -59,12 +104,16 @@ if not groq_key:
         groq_key = str(st.secrets.get("GROQ_API_KEY", ""))
 
 st.title("Document RAG")
-st.caption("Ask across your PDFs and Word documents, including native tables and statistics.")
+st.caption(
+    "Ask across PDFs, Word, Excel, and PowerPoint files, including native tables and statistics."
+)
 
 with st.sidebar:
     st.header("Document library")
     uploaded = st.file_uploader(
-        "Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True
+        "Upload PDF, Word, Excel, or PowerPoint files",
+        type=["pdf", "docx", "xlsx", "pptx"],
+        accept_multiple_files=True,
     )
     backend = st.selectbox("Vector database", DATABASES)
     choices = list(EMBEDDING_MODELS)
@@ -74,6 +123,11 @@ with st.sidebar:
         index=choices.index(settings.embedding_model) if settings.embedding_model in choices else 0,
         format_func=lambda name: EMBEDDING_MODELS[name],
     )
+    st.caption(
+        "For Arabic and mixed Arabic/English files, select a multilingual embedding model "
+        "(BGE-M3 or Qwen3). Reprocess after changing it. Scanned/image-only PDFs need OCR "
+        "and are not currently read."
+    )
     llm_choices = list(dict.fromkeys([*LLM_MODELS, settings.groq_model]))
     answer_model = st.selectbox(
         "Answer model",
@@ -81,9 +135,19 @@ with st.sidebar:
         index=llm_choices.index(settings.groq_model),
         format_func=lambda name: LLM_MODELS.get(name, name),
     )
+    visualization = st.selectbox(
+        "Statistical figures", list(VISUALIZATION_MODES),
+        format_func=VISUALIZATION_MODES.get,
+        help="Automatic chooses a suitable figure for statistical answers. Select a preferred "
+        "format or Tables only. Figures require suitable numeric data in a retrieved table.",
+    )
     chunk_size = st.slider("Chunk size (tokens)", 64, 480, 256, step=8)
     overlap = st.selectbox("Chunk overlap", [15, 30], format_func=lambda x: f"{x}%")
     top_k = st.slider("Top K", 2, 10, 5)
+    st.caption(
+        "Search uses Arabic and English queries, meaning, keywords, and worksheet names. "
+        "Top K reserves one result per document, or two when enough slots are available."
+    )
     config = ChunkConfig(chunk_size, overlap)
     st.caption(f"Requested overlap: {config.overlap_tokens} tokens. Tables overlap by whole rows.")
     if not groq_key:
@@ -100,6 +164,7 @@ with st.sidebar:
         embedding_model,
         chunk_size,
         overlap,
+        PIPELINE_VERSION,
     )
     if st.button("Process all documents", type="primary", disabled=not files, width="stretch"):
         documents, summaries, failures = [], [], []
@@ -112,7 +177,7 @@ with st.sidebar:
                 progress = st.progress(0)
                 for i, file in enumerate(files.values()):
                     try:
-                        document = parse_document(file.getvalue(), file.name)
+                        document = parse_document(file.getvalue(), file.name, PIPELINE_VERSION)
                         summary = index_document(document, config, embedder, store)
                         documents.append(document)
                         summaries.append(summary)
@@ -167,11 +232,20 @@ with library_tab:
                 )
 
 with chat_tab:
+    active_failures = prepared.get("failures", []) if matches else []
+    if active_failures:
+        st.warning(
+            f"Only {len(documents)} of {len(files)} uploaded documents are searchable. "
+            "The following files failed processing and are excluded from answers."
+        )
+        for failure in active_failures:
+            st.error(failure)
     if ready:
         st.success(
             f"Searching all {len(documents)} processed documents · "
             f"{sum(s.chunk_count for s in summaries)} chunks · {prepared['device']}"
         )
+        st.caption("Searchable files: " + ", ".join(document.filename for document in documents))
         repository = ChatRepository(settings.data_dir / "chat")
         chat_key = library_id(documents)
         messages = repository.load(chat_key)
@@ -186,8 +260,12 @@ with chat_tab:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
                 render_sources(message.get("sources", []))
-                if message.get("standalone_question"):
+                render_charts(message.get("charts", []))
+                searched_question = message.get("standalone_question", "")
+                if searched_question and not searched_question.startswith("CLARIFY:"):
                     st.caption(f"Searched for: {message['standalone_question']}")
+                if "elapsed_seconds" in message:
+                    st.caption(f"Answered in {message['elapsed_seconds']:.1f} seconds")
     else:
         messages = []
         st.info(
@@ -209,7 +287,8 @@ with chat_tab:
             st.markdown(question)
         try:
             with new_turn, st.chat_message("assistant"), st.spinner("Searching your library..."):
-                language_model = GroqLanguageModel(groq_key, answer_model)
+                started = time.perf_counter()
+                language_model = get_language_model(groq_key, answer_model)
                 response = answer_question(
                     index_ids=[s.index_id for s in summaries],
                     documents=documents,
@@ -221,18 +300,25 @@ with chat_tab:
                     ),
                     store=get_store(backend, str(settings.data_dir)),
                     language_model=language_model,
+                    visualization=visualization,
                 )
                 sources = [asdict(source) for source in response.sources]
+                elapsed = time.perf_counter() - started
                 st.markdown(response.text)
                 render_sources(sources)
-                st.caption(f"Searched for: {response.standalone_question}")
+                render_charts(response.charts)
+                if response.standalone_question:
+                    st.caption(f"Searched for: {response.standalone_question}")
+                st.caption(f"Answered in {elapsed:.1f} seconds")
                 messages.append(
                     {
                         "role": "assistant",
                         "content": response.text,
                         "sources": sources,
+                        "charts": list(response.charts),
                         "standalone_question": response.standalone_question,
                         "model": answer_model,
+                        "elapsed_seconds": elapsed,
                     }
                 )
                 repository.save(chat_key, messages)
