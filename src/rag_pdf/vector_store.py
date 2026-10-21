@@ -32,6 +32,8 @@ def result(row, score):
         row["filename"],
         row["location"],
         row["table_id"],
+        source_url=row.get("source_url", ""),
+        fetched_at=row.get("fetched_at", ""),
     )
 
 

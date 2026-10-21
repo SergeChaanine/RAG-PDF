@@ -50,6 +50,8 @@ def chunk_document(
                 row_start,
                 row_end,
                 overlap,
+                source_url=document.source_url,
+                fetched_at=document.fetched_at,
             )
         )
 

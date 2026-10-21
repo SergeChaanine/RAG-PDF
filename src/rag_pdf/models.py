@@ -42,6 +42,8 @@ class ExtractedDocument:
     tables: tuple[DocumentTable, ...] = ()
     warnings: tuple[str, ...] = ()
     file_type: str = "pdf"
+    source_url: str = ""
+    fetched_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ class TextChunk:
     row_start: int = 0
     row_end: int = 0
     overlap_tokens: int = 0
+    source_url: str = ""
+    fetched_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,8 @@ class SearchResult:
     table: DocumentTable | None = None
     retrieval_method: str = "semantic"
     keyword_score: float = 0.0
+    source_url: str = ""
+    fetched_at: str = ""
 
 
 @dataclass(frozen=True)

@@ -18,6 +18,26 @@ python -m streamlit run app.py --server.fileWatcherType none
 Set `GROQ_API_KEY` in `.env`. Existing installations only need the dependency update
 and a Streamlit restart. For development, install `requirements-dev.txt` too.
 
+## USEK website crawl and chatbot
+
+Version 0.2 adds **USEK Website** in the Streamlit sidebar. It reads your saved
+`documents.jsonl` crawl export, re-cleans saved HTML, indexes webpages and PDFs together,
+and answers with official source links and original PDF page numbers. The running
+standalone crawler can continue unchanged; its existing exports are compatible.
+
+```powershell
+python -m pip install -r requirements.txt -r requirements-crawl.txt
+python scripts/check_usek.py --crawl-dir "$env:LOCALAPPDATA/RAG-PDF/usek/full"
+python -m streamlit run app.py
+```
+
+Open **USEK Website**, load the crawl snapshot, review its extraction/coverage issues,
+then select **Build or reuse website index**. The check and indexing do not call Groq;
+answers use your existing `.env` key. Webpage sources activate additional system rules
+for prompt injection, unsupported facts, deadlines, personal data, and account actions.
+Downloaded content and indexes stay outside Git. See [the complete USEK workflow](docs/USEK_WEBSITE.md)
+for a subset smoke test, the repository crawler, limitations, and presentation validation.
+
 ## Document library and conversation
 
 1. Upload one or more PDF, DOCX, XLSX, or PPTX files. Identical uploads are deduplicated.

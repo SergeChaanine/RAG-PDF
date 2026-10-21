@@ -98,7 +98,8 @@ def index_document(
 
 
 def search_library(
-    index_ids, query_embedding, top_k, store, *, question="", query_variants=()
+    index_ids, query_embedding, top_k, store, *, question="", query_variants=(),
+    document_diversity=True,
 ):
     """Fuse semantic/keyword candidates and reserve coverage across active documents."""
     if top_k < 1:
@@ -150,6 +151,8 @@ def search_library(
     selected, represented = [], set()
     # Keep the best evidence from each document when Top K has enough slots.
     for key in ranked:
+        if not document_diversity:
+            break
         hit = candidates[key]
         if hit.document_id not in represented:
             selected.append(key)
@@ -237,7 +240,8 @@ def expand_tables(sources, documents, max_characters=40_000):
 
 
 def retrieve_sources(
-    *, index_ids, documents, question, top_k, embedder, store, language_model=None, queries=None
+    *, index_ids, documents, question, top_k, embedder, store, language_model=None, queries=None,
+    document_diversity=True,
 ):
     if queries is None:
         queries = (
@@ -251,6 +255,7 @@ def retrieve_sources(
     sources = search_library(
         index_ids, embeddings[0][1], top_k, store,
         question=question, query_variants=embeddings[1:],
+        document_diversity=document_diversity,
     )
     return sources
 
@@ -258,15 +263,18 @@ def retrieve_sources(
 def answer_question(
     *, index_ids, documents, question, history, top_k, embedder, store, language_model,
     visualization="auto",
+    document_diversity=True, planning_filenames=None,
 ):
     standalone, queries = language_model.prepare_search(
-        question, history, [document.filename for document in documents]
+        question, history,
+        planning_filenames if planning_filenames is not None else [d.filename for d in documents],
     )
     if standalone.startswith("CLARIFY:"):
         return Answer(standalone.removeprefix("CLARIFY:").strip(), "")
     sources = retrieve_sources(
         index_ids=index_ids, documents=documents, question=standalone, top_k=top_k,
         embedder=embedder, store=store, queries=queries,
+        document_diversity=document_diversity,
     )
     sources = expand_tables(sources, documents)
     text = language_model.answer(

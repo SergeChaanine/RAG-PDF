@@ -12,4 +12,4 @@ LLM_MODELS = {
     "qwen/qwen3.8-27b": "Qwen 3.8 27B (preview)",
 }
 DATABASES = ("Chroma", "Qdrant", "LanceDB")
-PIPELINE_VERSION = "structured-v2.3-excel-dimensions-headers"
+PIPELINE_VERSION = "structured-v3-usek-source-urls"

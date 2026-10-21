@@ -12,3 +12,7 @@ build/
 tmp/
 study_results/**/indexes/
 study_results/**/evidence/
+
+# Downloaded university content stays outside version control.
+crawl_data/
+usek_data/

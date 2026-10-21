@@ -107,6 +107,7 @@ st.title("Document RAG")
 st.caption(
     "Ask across PDFs, Word, Excel, and PowerPoint files, including native tables and statistics."
 )
+st.caption("For crawled university content, open USEK Website from the sidebar.")
 
 with st.sidebar:
     st.header("Document library")
