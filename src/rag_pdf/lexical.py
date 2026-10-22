@@ -63,7 +63,7 @@ class KeywordIndex:
                 ),
             )
 
-    def search(self, index_ids, question, limit):
+    def search(self, index_ids, question, limit, *, document_ids=None):
         terms = list(dict.fromkeys(re.findall(r"[^\W_]+", normalize(question))))
         terms = [term for term in terms if term not in STOP_WORDS][:64]
         if not terms or not index_ids:
@@ -71,12 +71,21 @@ class KeywordIndex:
         # Only letters/digits reach MATCH; user punctuation never becomes FTS syntax.
         query = " OR ".join(f'"{term}"' for term in terms)
         placeholders = ",".join("?" for _ in index_ids)
+        scope = ""
+        scope_values = ()
+        if document_ids:
+            scope = (
+                " AND json_extract(payload, '$.document_id') IN ("
+                + ",".join("?" for _ in document_ids)
+                + ")"
+            )
+            scope_values = tuple(document_ids)
         with closing(sqlite3.connect(self.path)) as db:
             rows = db.execute(
                 "SELECT payload, -bm25(chunks, 1.0, 3.0, 2.0) FROM chunks WHERE chunks MATCH ? "
-                f"AND index_id IN ({placeholders}) "
+                f"AND index_id IN ({placeholders}) {scope} "
                 "ORDER BY bm25(chunks, 1.0, 3.0, 2.0), index_id, rowid LIMIT ?",
-                (query, *index_ids, limit),
+                (query, *index_ids, *scope_values, limit),
             ).fetchall()
         return [
             replace(

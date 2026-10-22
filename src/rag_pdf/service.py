@@ -98,20 +98,35 @@ def index_document(
 
 
 def search_library(
-    index_ids, query_embedding, top_k, store, *, question="", query_variants=(),
+    index_ids,
+    query_embedding,
+    top_k,
+    store,
+    *,
+    question="",
+    query_variants=(),
     document_diversity=True,
+    reranker=None,
+    document_ids=None,
 ):
     """Fuse semantic/keyword candidates and reserve coverage across active documents."""
     if top_k < 1:
         raise ValueError("Top K must be positive.")
     index_ids = list(dict.fromkeys(index_ids))
     candidate_limit = max(20, top_k * 4)
+    if reranker is not None:
+        candidate_limit = max(64, candidate_limit)
     queries = [(question, query_embedding), *query_variants]
     results = [
         hit
         for _, embedding in queries
         for index_id in index_ids
-        for hit in store.search(index_id, embedding, candidate_limit)
+        for hit in store.search(
+            index_id,
+            embedding,
+            candidate_limit,
+            **({"document_ids": document_ids} if document_ids else {}),
+        )
     ]
     semantic = sorted(results, key=lambda hit: (-hit.score, hit.document_id, hit.chunk_id))
     keyword = []
@@ -121,7 +136,9 @@ def search_library(
         keywords = KeywordIndex(keyword_path)
         for query, _ in queries:
             for index_id in index_ids:
-                keyword.extend(keywords.search([index_id], query, candidate_limit))
+                keyword.extend(
+                    keywords.search([index_id], query, candidate_limit, document_ids=document_ids)
+                )
 
     candidates = {}
     for hit in semantic:
@@ -148,6 +165,25 @@ def search_library(
     }
 
     ranked = sorted(candidates, key=lambda key: (-relevance[key], *key))
+    if reranker is not None:
+        rerank_question = question
+        if getattr(reranker, "english_only", False):
+            # The answer pipeline already translates Arabic questions for retrieval.
+            # Reuse that query for the compact English passage reranker.
+            rerank_question = max(
+                (query for query, _ in queries),
+                key=lambda query: (
+                    sum(char.isascii() and char.isalpha() for char in query)
+                    / max(sum(char.isalpha() for char in query), 1)
+                ),
+            )
+        scored = reranker.rank(rerank_question, list(candidates.values()))
+        ranked = [(hit.document_id, hit.chunk_id) for hit, _ in scored]
+        relevance = {(hit.document_id, hit.chunk_id): score for hit, score in scored}
+        for key in ranked:
+            candidates[key] = replace(
+                candidates[key], retrieval_method=candidates[key].retrieval_method + " + reranked"
+            )
     selected, represented = [], set()
     # Keep the best evidence from each document when Top K has enough slots.
     for key in ranked:
@@ -195,6 +231,53 @@ def search_library(
     return [candidates[key] for key in sorted(selected, key=lambda key: (-relevance[key], *key))]
 
 
+def expand_website_sections(sources, documents, max_characters=18_000):
+    """Retain short webpage procedures and PDF page headings around matched chunks."""
+    lookup = {
+        doc.document_id: doc
+        for doc in documents
+        if doc.file_type in {"html", "pdf"} and doc.source_url
+    }
+    used = sum(len(source.text) for source in sources)
+    expanded, complete = [], set()
+    for source in sources:
+        document = lookup.get(source.document_id)
+        section = (
+            next(
+                (
+                    page
+                    for page in document.pages
+                    if (
+                        (document.file_type == "html" and page.location == source.location)
+                        or (
+                            document.file_type == "pdf"
+                            and page.page_number == source.page_number
+                            and not source.table_id
+                        )
+                    )
+                    and source.text in page.text
+                ),
+                None,
+            )
+            if document
+            else None
+        )
+        key = (source.document_id, source.location)
+        if section and key in complete:
+            used -= len(source.text)
+            continue
+        if (
+            section
+            and len(section.text) <= 8_000
+            and used - len(source.text) + len(section.text) <= max_characters
+        ):
+            used += len(section.text) - len(source.text)
+            source = replace(source, text=section.text)
+            complete.add(key)
+        expanded.append(source)
+    return tuple(expanded)
+
+
 def expand_tables(sources, documents, max_characters=40_000):
     tables = {(d.document_id, t.table_id): t for d in documents for t in d.tables}
     worksheets = {
@@ -240,43 +323,95 @@ def expand_tables(sources, documents, max_characters=40_000):
 
 
 def retrieve_sources(
-    *, index_ids, documents, question, top_k, embedder, store, language_model=None, queries=None,
+    *,
+    index_ids,
+    documents,
+    question,
+    top_k,
+    embedder,
+    store,
+    language_model=None,
+    queries=None,
     document_diversity=True,
+    reranker=None,
 ):
     if queries is None:
         queries = (
             language_model.retrieval_queries(
                 question, [document.filename for document in documents]
             )
-            if language_model else [question]
+            if language_model
+            else [question]
         )
     queries = list(dict.fromkeys([question, *queries]))
+    from rag_pdf.website_routing import catalogue_scope, financial_aid_office_source
+
+    scope = catalogue_scope(documents, queries)
+    if scope == ():
+        return ()
     embeddings = list(zip(queries, embedder.embed_queries(queries), strict=True))
     sources = search_library(
-        index_ids, embeddings[0][1], top_k, store,
-        question=question, query_variants=embeddings[1:],
+        index_ids,
+        embeddings[0][1],
+        top_k,
+        store,
+        question=question,
+        query_variants=embeddings[1:],
         document_diversity=document_diversity,
+        reranker=reranker,
+        document_ids=scope,
     )
+    office = financial_aid_office_source(documents, queries) if scope is None else None
+    if office:
+        sources = [
+            office,
+            *(source for source in sources if source.document_id != office.document_id),
+        ][:top_k]
     return sources
 
 
 def answer_question(
-    *, index_ids, documents, question, history, top_k, embedder, store, language_model,
+    *,
+    index_ids,
+    documents,
+    question,
+    history,
+    top_k,
+    embedder,
+    store,
+    language_model,
     visualization="auto",
-    document_diversity=True, planning_filenames=None,
+    document_diversity=True,
+    planning_filenames=None,
+    reranker=None,
 ):
     standalone, queries = language_model.prepare_search(
-        question, history,
+        question,
+        history,
         planning_filenames if planning_filenames is not None else [d.filename for d in documents],
     )
     if standalone.startswith("CLARIFY:"):
         return Answer(standalone.removeprefix("CLARIFY:").strip(), "")
     sources = retrieve_sources(
-        index_ids=index_ids, documents=documents, question=standalone, top_k=top_k,
-        embedder=embedder, store=store, queries=queries,
+        index_ids=index_ids,
+        documents=documents,
+        question=standalone,
+        top_k=top_k,
+        embedder=embedder,
+        store=store,
+        queries=queries,
         document_diversity=document_diversity,
+        reranker=reranker,
     )
     sources = expand_tables(sources, documents)
+    sources = expand_website_sections(sources, documents)
+    if not sources and any(document.source_url for document in documents):
+        from rag_pdf.llm import WEBSITE_NOT_FOUND, WEBSITE_NOT_FOUND_AR, _text_language
+
+        return Answer(
+            WEBSITE_NOT_FOUND_AR if _text_language(question) == "Arabic" else WEBSITE_NOT_FOUND,
+            standalone,
+        )
     text = language_model.answer(
         standalone, sources, original_question=question, visualization=visualization
     )

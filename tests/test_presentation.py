@@ -133,7 +133,8 @@ def test_presentation_page_opens_ready_and_answers_without_build_buttons(tmp_pat
         classmethod(lambda cls: Settings(groq_api_key="test", data_dir=tmp_path)),
     )
     monkeypatch.setattr(
-        "rag_pdf.website_ui.get_presentation_runtime", lambda *args: (prepared, ReadyEmbedder())
+        "rag_pdf.website_ui.get_presentation_runtime",
+        lambda *args: (prepared, ReadyEmbedder(), object()),
     )
     from rag_pdf.models import Answer, SearchResult
 

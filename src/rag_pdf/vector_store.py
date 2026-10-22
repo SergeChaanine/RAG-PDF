@@ -18,7 +18,9 @@ class VectorStore(Protocol):
     def count(self, index_id: str) -> int: ...
     def delete(self, index_id: str) -> None: ...
     def add(self, index_id, document, chunks, embeddings, **metadata) -> None: ...
-    def search(self, index_id, query_embedding, top_k) -> list[SearchResult]: ...
+    def search(
+        self, index_id, query_embedding, top_k, *, document_ids=None
+    ) -> list[SearchResult]: ...
 
 
 def result(row, score):
@@ -76,7 +78,7 @@ class ChromaVectorStore:
             metadatas=[asdict(c) for c in chunks],
         )
 
-    def search(self, index_id, query_embedding, top_k):
+    def search(self, index_id, query_embedding, top_k, *, document_ids=None):
         collection = self._client.get_collection(
             self.collection_name(index_id), embedding_function=None
         )
@@ -86,6 +88,7 @@ class ChromaVectorStore:
         response = collection.query(
             query_embeddings=[list(query_embedding)],
             n_results=min(top_k, count),
+            where={"document_id": {"$in": list(document_ids)}} if document_ids else None,
             include=["metadatas", "distances"],
         )
         return [
@@ -129,9 +132,19 @@ class QdrantVectorStore:
             wait=True,
         )
 
-    def search(self, index_id, query_embedding, top_k):
+    def search(self, index_id, query_embedding, top_k, *, document_ids=None):
+        from qdrant_client.models import FieldCondition, Filter, MatchAny
+
         response = self._client.query_points(
-            index_id, query=list(query_embedding), limit=top_k, with_payload=True
+            index_id,
+            query=list(query_embedding),
+            limit=top_k,
+            with_payload=True,
+            query_filter=Filter(
+                must=[FieldCondition(key="document_id", match=MatchAny(any=list(document_ids)))]
+            )
+            if document_ids
+            else None,
         )
         return [result(point.payload, point.score) for point in response.points]
 
@@ -173,14 +186,16 @@ class LanceVectorStore:
         else:
             table.add(rows)
 
-    def search(self, index_id, query_embedding, top_k):
-        rows = (
-            self._table(index_id)
-            .search(list(query_embedding))
-            .distance_type("cosine")
-            .limit(top_k)
-            .to_list()
-        )
+    def search(self, index_id, query_embedding, top_k, *, document_ids=None):
+        query = self._table(index_id).search(list(query_embedding)).distance_type("cosine")
+        if document_ids:
+            # Retain compatibility with existing Lance tables whose metadata is JSON.
+            terms = []
+            for document_id in document_ids:
+                marker = json.dumps({"document_id": document_id})[1:-1].replace("'", "''")
+                terms.append(f"payload LIKE '%{marker}%'")
+            query = query.where(" OR ".join(terms), prefilter=True)
+        rows = query.limit(top_k).to_list()
         return [result(json.loads(row["payload"]), 1 - row["_distance"]) for row in rows]
 
 

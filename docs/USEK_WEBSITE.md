@@ -45,6 +45,11 @@ python scripts/prepare_usek.py --device cuda
 This uses the RTX GPU for BGE-M3 embeddings and saves a self-contained presentation
 package at `%LOCALAPPDATA%/RAG-PDF/presentations/usek-full` (or under `RAG_DATA_DIR`).
 The default is **all usable sources**, 256-token chunks, 15% overlap, and Chroma.
+Preparation also caches `cross-encoder/ms-marco-MiniLM-L6-v2` for local passage
+reranking. Arabic questions reuse the English translation already produced by bilingual
+search; BGE-M3 still performs multilingual retrieval over the full collection. The compact
+reranker is trained for English passages, so its coverage of other-language documents
+is more limited than its coverage of the English website.
 HTML is cleaned from the saved snapshots; PDF text retains original page references.
 It does not crawl the website again or download/store images. Native-text-less PDFs
 and rejected records are reported rather than silently treated as searchable.
@@ -77,10 +82,17 @@ python -m streamlit run pages/1_USEK_Website.py
 
 **Presentation mode** is enabled automatically when a completed active package
 exists. It validates saved files/counts, loads frozen documents and indexes, and warms
-the locally cached query model before accepting questions. It does not clean sources,
+the locally cached query and reranking models before accepting questions. It does not clean sources,
 chunk documents, generate document embeddings, or download a model. Open it a few
 minutes before presenting so startup/model loading is finished. Each question only
-needs query embeddings, retrieval, and answer generation.
+needs query embeddings, retrieval, passage reranking, and answer generation. Matched
+short webpage sections and PDF pages are expanded to retain complete procedures and
+date headings. Calendar mentions
+and general reports compete with detailed instructions through the reranker.
+Financial-aid questions also include the saved main Financial Aid Office page as
+primary evidence. Questions naming a catalogue and academic year search the matching
+catalogue, using its cover text to establish the year. Missing editions return a
+not-found response rather than substituting another year's catalogue.
 
 Keep the prepared directory and the cached Hugging Face model on this computer.
 Preparation and retrieval are local. **Groq answers still require internet and a

@@ -12,6 +12,7 @@ from dotenv import load_dotenv  # noqa: E402
 from rag_pdf.config import ChunkConfig, Settings  # noqa: E402
 from rag_pdf.embeddings import LocalEmbeddingModel  # noqa: E402
 from rag_pdf.presentation import load_prepared_website, prepare_website  # noqa: E402
+from rag_pdf.reranking import LocalReranker  # noqa: E402
 
 
 def main(argv=None):
@@ -55,6 +56,9 @@ def main(argv=None):
     print(f"Loading {options.embedding_model} on {options.device}...", flush=True)
     model = LocalEmbeddingModel(options.embedding_model, options.device, options.batch_size)
     print(f"Embedding device: {model.device_label}", flush=True)
+    print("Preparing the compact passage reranker...", flush=True)
+    reranker = LocalReranker(device=options.device)
+    reranker.rank("How do I register?", [])
     prepared = prepare_website(
         options.crawl_dir,
         options.output,

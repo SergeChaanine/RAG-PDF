@@ -15,6 +15,7 @@ from rag_pdf.embeddings import LocalEmbeddingModel
 from rag_pdf.llm import GroqLanguageModel
 from rag_pdf.models import ChatTurn
 from rag_pdf.presentation import active_presentation, load_prepared_website
+from rag_pdf.reranking import LocalReranker
 from rag_pdf.service import ChatRepository, answer_question, library_id
 from rag_pdf.vector_store import create_store
 from rag_pdf.website import index_website, load_crawl_dataset, official_source_url
@@ -43,8 +44,10 @@ def get_presentation_runtime(path, manifest_stamp, device, batch_size):
     )
     # Pay model/CUDA startup and index loading once, before accepting the first question.
     vector = embedder.embed_queries(["How do I register at USEK?"])[0]
-    prepared.store.search(prepared.index.index_id, vector, 1)
-    return prepared, embedder
+    hits = prepared.store.search(prepared.index.index_id, vector, 1)
+    reranker = LocalReranker(device=device, local_files_only=True)
+    reranker.rank("How do I register at USEK?", hits)
+    return prepared, embedder, reranker
 
 
 def render_website_sources(sources):
@@ -85,7 +88,7 @@ def render_presentation(settings, key, active):
         path = Path(package_path).expanduser().resolve()
         stamp = (path / "manifest.json").stat().st_mtime_ns
         with st.spinner("Opening saved indexes and warming up the query model..."):
-            prepared, embedder = get_presentation_runtime(
+            prepared, embedder, reranker = get_presentation_runtime(
                 str(path), stamp, settings.embedding_device, settings.embedding_batch_size
             )
     except Exception as exc:
@@ -166,6 +169,7 @@ def render_presentation(settings, key, active):
                     visualization="off",
                     document_diversity=False,
                     planning_filenames=["USEK university website and linked public PDFs"],
+                    reranker=reranker,
                 )
                 sources = [asdict(source) for source in result.sources]
                 st.markdown(result.text)
