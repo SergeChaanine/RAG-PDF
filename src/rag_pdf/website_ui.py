@@ -14,6 +14,7 @@ from rag_pdf.config import ChunkConfig, Settings
 from rag_pdf.embeddings import LocalEmbeddingModel
 from rag_pdf.llm import GroqLanguageModel
 from rag_pdf.models import ChatTurn
+from rag_pdf.presentation import active_presentation, load_prepared_website
 from rag_pdf.service import ChatRepository, answer_question, library_id
 from rag_pdf.vector_store import create_store
 from rag_pdf.website import index_website, load_crawl_dataset, official_source_url
@@ -34,6 +35,18 @@ def get_website_llm(api_key, name):
     return GroqLanguageModel(api_key, name)
 
 
+@st.cache_resource(show_spinner=False, max_entries=1)
+def get_presentation_runtime(path, manifest_stamp, device, batch_size):
+    prepared = load_prepared_website(path)
+    embedder = LocalEmbeddingModel(
+        prepared.manifest["embedding_model"], device, batch_size, local_files_only=True
+    )
+    # Pay model/CUDA startup and index loading once, before accepting the first question.
+    vector = embedder.embed_queries(["How do I register at USEK?"])[0]
+    prepared.store.search(prepared.index.index_id, vector, 1)
+    return prepared, embedder
+
+
 def render_website_sources(sources):
     if not sources:
         return
@@ -52,6 +65,125 @@ def render_website_sources(sources):
             st.text(source["text"])
 
 
+def render_presentation(settings, key, active):
+    with st.sidebar:
+        package_path = st.text_input(
+            "Prepared presentation package",
+            str(active or settings.data_dir / "presentations" / "usek-full"),
+        )
+        names = list(dict.fromkeys([*LLM_MODELS, settings.groq_model]))
+        answer_name = st.selectbox(
+            "Answer model",
+            names,
+            index=names.index(settings.groq_model),
+            format_func=lambda name: LLM_MODELS.get(name, name),
+            key="prepared_answer_model",
+        )
+        top_k = st.slider("Top K", 2, 12, 8, key="prepared_top_k")
+        st.caption("The saved search index is ready. Answers use Groq and require internet.")
+    try:
+        path = Path(package_path).expanduser().resolve()
+        stamp = (path / "manifest.json").stat().st_mtime_ns
+        with st.spinner("Opening saved indexes and warming up the query model..."):
+            prepared, embedder = get_presentation_runtime(
+                str(path), stamp, settings.embedding_device, settings.embedding_batch_size
+            )
+    except Exception as exc:
+        st.error(f"Could not open the prepared presentation: {exc}")
+        st.info("Run scripts/prepare_usek.py first, or select a completed package.")
+        return
+    dataset, index = prepared.dataset, prepared.index
+    counts = dataset.summary()["source_types"]
+    columns = st.columns(3)
+    columns[0].metric("Searchable sources", index.document_count)
+    columns[1].metric("Webpages", counts.get("html", 0))
+    columns[2].metric("PDF documents", counts.get("pdf", 0))
+    st.success(f"Ready · {index.chunk_count:,} saved chunks · {embedder.device_label}")
+    with st.expander("Prepared dataset details"):
+        st.write(f"Prepared: {prepared.manifest['created_at']}")
+        st.write(f"Embedding model: {prepared.manifest['embedding_model']}")
+        st.write(f"Package: {prepared.path}")
+        st.caption(
+            f"{len(dataset.issues)} records excluded during preparation. "
+            "Answers cover the usable saved sources; crawl failures and PDFs "
+            "without native text are not included."
+        )
+        for issue in dataset.issues[:100]:
+            st.caption(issue)
+        for warning in index.warnings[:100]:
+            st.caption(warning)
+    with st.expander("Preview a saved source"):
+        selected = st.selectbox(
+            "Saved source",
+            range(len(dataset.documents)),
+            format_func=lambda i: dataset.documents[i].filename,
+            key="prepared_source",
+        )
+        document = dataset.documents[selected]
+        st.link_button("Open official source", document.source_url)
+        page = st.selectbox(
+            "Page or section",
+            range(len(document.pages)),
+            format_func=lambda i: document.pages[i].location,
+            key="prepared_page",
+        )
+        st.text(document.pages[page].text)
+    repository = ChatRepository(settings.data_dir / "website_chat")
+    chat_key = "usek:" + library_id(dataset.documents)
+    messages = repository.load(chat_key)
+    if st.button("Clear website conversation", disabled=not messages):
+        repository.save(chat_key, [])
+        st.rerun()
+    for message in messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            render_website_sources(message.get("sources", []))
+    if not key:
+        st.info("Set GROQ_API_KEY in .env to generate answers from the prepared sources.")
+    question = st.chat_input(
+        "Ask about USEK, or follow up on an earlier answer",
+        disabled=not key,
+        key="prepared_question",
+    )
+    if question:
+        history = [ChatTurn(message["role"], message["content"]) for message in messages]
+        messages.append({"role": "user", "content": question})
+        repository.save(chat_key, messages)
+        with st.chat_message("user"):
+            st.markdown(question)
+        try:
+            with st.chat_message("assistant"), st.spinner("Searching saved USEK sources..."):
+                started = time.perf_counter()
+                result = answer_question(
+                    index_ids=[index.index_id],
+                    documents=dataset.documents,
+                    question=question,
+                    history=history,
+                    top_k=top_k,
+                    embedder=embedder,
+                    store=prepared.store,
+                    language_model=get_website_llm(key, answer_name),
+                    visualization="off",
+                    document_diversity=False,
+                    planning_filenames=["USEK university website and linked public PDFs"],
+                )
+                sources = [asdict(source) for source in result.sources]
+                st.markdown(result.text)
+                render_website_sources(sources)
+                st.caption(f"Answered in {time.perf_counter() - started:.1f} seconds")
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": result.text,
+                        "sources": sources,
+                        "standalone_question": result.standalone_question,
+                    }
+                )
+                repository.save(chat_key, messages)
+        except Exception as exc:
+            st.error(f"Could not answer: {exc}")
+
+
 def render_website():
     st.set_page_config(page_title="USEK Website RAG", page_icon="🌐", layout="wide")
     settings = Settings.from_env()
@@ -61,6 +193,10 @@ def render_website():
             key = str(st.secrets.get("GROQ_API_KEY", ""))
     st.title("USEK Website")
     st.caption("Ask about registration, admissions, financial aid, and other saved USEK sources.")
+    active = active_presentation(settings.data_dir)
+    if st.sidebar.toggle("Presentation mode", value=active is not None):
+        render_presentation(settings, key, active)
+        return
     with st.sidebar:
         crawl_path = st.text_input(
             "Crawl directory or documents.jsonl", str(settings.data_dir / "usek" / "full")

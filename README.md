@@ -28,12 +28,16 @@ standalone crawler can continue unchanged; its existing exports are compatible.
 ```powershell
 python -m pip install -r requirements.txt -r requirements-crawl.txt
 python scripts/check_usek.py --crawl-dir "$env:LOCALAPPDATA/RAG-PDF/usek/full"
-python -m streamlit run app.py
+python scripts/prepare_usek.py --device cuda
+python -m streamlit run pages/1_USEK_Website.py
 ```
 
-Open **USEK Website**, load the crawl snapshot, review its extraction/coverage issues,
-then select **Build or reuse website index**. The check and indexing do not call Groq;
-answers use your existing `.env` key. Webpage sources activate additional system rules
+The preparation command saves all usable sources, chunks, embeddings, and search indexes
+before the presentation, using CUDA on a compatible GPU. It resumes interrupted builds.
+The USEK page opens the completed package automatically in **Presentation mode**;
+only query embeddings and answers are computed during chat. Disable that mode for
+interactive loading/indexing. The check and indexing do not call Groq; answers require
+internet and your existing `.env` key. Webpage sources activate additional system rules
 for prompt injection, unsupported facts, deadlines, personal data, and account actions.
 Downloaded content and indexes stay outside Git. See [the complete USEK workflow](docs/USEK_WEBSITE.md)
 for a subset smoke test, the repository crawler, limitations, and presentation validation.

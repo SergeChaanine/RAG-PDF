@@ -35,6 +35,8 @@ class LocalEmbeddingModel:
         model_name: str,
         device: str = "auto",
         batch_size: int = 64,
+        *,
+        local_files_only: bool = False,
     ) -> None:
         import torch
         from sentence_transformers import SentenceTransformer
@@ -56,6 +58,11 @@ class LocalEmbeddingModel:
                 local_files_only=True,
             )
         except (OSError, ValueError):
+            if local_files_only:
+                raise RuntimeError(
+                    f"{model_name} is not fully cached. Prepare the presentation "
+                    "on this computer before opening it offline."
+                ) from None
             # On the first run, allow Sentence Transformers to download the model.
             self._model = SentenceTransformer(model_name, device=self.device)
         if self.device == "cuda":
