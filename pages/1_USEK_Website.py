@@ -1,4 +1,4 @@
-"""USEK crawl testing page, available from the main Streamlit app's sidebar."""
+"""Start the USEK chatbot with a toggle back to file-upload RAG."""
 
 import sys
 from pathlib import Path
@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from dotenv import load_dotenv  # noqa: E402
 
-from rag_pdf.website_ui import render_website  # noqa: E402
+from rag_pdf.app_ui import render_application  # noqa: E402
 
 load_dotenv(ROOT / ".env")
-render_website()
+render_application(default_usek=True)

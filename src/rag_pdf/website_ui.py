@@ -12,7 +12,7 @@ import streamlit as st
 from rag_pdf.catalog import DATABASES, EMBEDDING_MODELS, LLM_MODELS
 from rag_pdf.config import ChunkConfig, Settings
 from rag_pdf.embeddings import LocalEmbeddingModel
-from rag_pdf.llm import GroqLanguageModel
+from rag_pdf.llm import WEBSITE_RULES, GroqLanguageModel
 from rag_pdf.models import ChatTurn
 from rag_pdf.presentation import active_presentation, load_prepared_website
 from rag_pdf.reranking import LocalReranker
@@ -32,7 +32,8 @@ def get_website_store(backend, root):
 
 
 @st.cache_resource(show_spinner=False, max_entries=4)
-def get_website_llm(api_key, name):
+def get_website_llm(api_key, name, policy):
+    """Include trusted policy in the cache key so rule updates replace old instances."""
     return GroqLanguageModel(api_key, name)
 
 
@@ -165,7 +166,7 @@ def render_presentation(settings, key, active):
                     top_k=top_k,
                     embedder=embedder,
                     store=prepared.store,
-                    language_model=get_website_llm(key, answer_name),
+                    language_model=get_website_llm(key, answer_name, WEBSITE_RULES),
                     visualization="off",
                     document_diversity=False,
                     planning_filenames=["USEK university website and linked public PDFs"],
@@ -189,16 +190,18 @@ def render_presentation(settings, key, active):
 
 
 def render_website():
-    st.set_page_config(page_title="USEK Website RAG", page_icon="🌐", layout="wide")
     settings = Settings.from_env()
     key = settings.groq_api_key
     if not key:
         with suppress(FileNotFoundError, KeyError):
             key = str(st.secrets.get("GROQ_API_KEY", ""))
-    st.title("USEK Website")
+    st.title("USEK Chatbot")
     st.caption("Ask about registration, admissions, financial aid, and other saved USEK sources.")
     active = active_presentation(settings.data_dir)
-    if st.sidebar.toggle("Presentation mode", value=active is not None):
+    configure_sources = st.sidebar.checkbox(
+        "Configure USEK sources", value=active is None, key="usek_configure_sources",
+    )
+    if not configure_sources:
         render_presentation(settings, key, active)
         return
     with st.sidebar:
@@ -384,7 +387,7 @@ def render_website():
                             embedding_name, settings.embedding_device, settings.embedding_batch_size
                         ),
                         store=get_website_store(backend, index_root),
-                        language_model=get_website_llm(key, answer_name),
+                        language_model=get_website_llm(key, answer_name, WEBSITE_RULES),
                         visualization="off",
                         document_diversity=False,
                         planning_filenames=["USEK university website and linked public PDFs"],

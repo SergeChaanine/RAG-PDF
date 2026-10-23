@@ -344,7 +344,11 @@ def retrieve_sources(
             else [question]
         )
     queries = list(dict.fromkeys([question, *queries]))
-    from rag_pdf.website_routing import catalogue_scope, financial_aid_office_source
+    from rag_pdf.website_routing import (
+        catalogue_scope,
+        financial_aid_office_source,
+        program_credit_sources,
+    )
 
     scope = catalogue_scope(documents, queries)
     if scope == ():
@@ -366,6 +370,13 @@ def retrieve_sources(
         sources = [
             office,
             *(source for source in sources if source.document_id != office.document_id),
+        ][:top_k]
+    programs = program_credit_sources(documents, queries, limit=top_k) if scope is None else []
+    if programs:
+        represented = {source.document_id for source in programs}
+        sources = [
+            *programs,
+            *(source for source in sources if source.document_id not in represented),
         ][:top_k]
     return sources
 

@@ -34,10 +34,13 @@ python -m streamlit run pages/1_USEK_Website.py
 
 The preparation command saves all usable sources, chunks, embeddings, and search indexes
 before the presentation, using CUDA on a compatible GPU. It resumes interrupted builds.
-The USEK page opens the completed package automatically in **Presentation mode**;
-only query embeddings and answers are computed during chat. Disable that mode for
-interactive loading/indexing. The check and indexing do not call Groq; answers require
-internet and your existing `.env` key. Webpage sources activate additional system rules
+The USEK page opens the completed package automatically with **USEK Chatbot** enabled;
+only query embeddings and answers are computed during chat. Turn **USEK Chatbot** off
+to return to the original file-upload RAG, or on to search the saved university sources.
+Both modes are available from either entry point. Uploaded files, processing settings,
+and the processed library are retained while switching within the same session.
+Use **Configure USEK sources** in the university mode for interactive loading/indexing.
+The check and indexing do not call Groq; answers require internet and your existing `.env` key. Webpage sources activate additional system rules
 for prompt injection, unsupported facts, deadlines, personal data, and account actions.
 Downloaded content and indexes stay outside Git. See [the complete USEK workflow](docs/USEK_WEBSITE.md)
 for a subset smoke test, the repository crawler, limitations, and presentation validation.

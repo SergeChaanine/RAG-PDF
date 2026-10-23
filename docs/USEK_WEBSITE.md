@@ -80,8 +80,14 @@ For the live demo, open the university page directly:
 python -m streamlit run pages/1_USEK_Website.py
 ```
 
-**Presentation mode** is enabled automatically when a completed active package
-exists. It validates saved files/counts, loads frozen documents and indexes, and warms
+The university entry point starts with **USEK Chatbot** enabled. Turn it off to
+use the original file-upload RAG, including its chunking, embeddings, and document chat.
+The main `app.py` entry point starts with file upload and provides the same toggle.
+Switching retains uploaded files, processing settings, and the processed library
+within the current session. Each mode keeps its own sources and conversation history.
+
+The USEK chatbot opens the active prepared package automatically when one exists.
+It validates saved files/counts, loads frozen documents and indexes, and warms
 the locally cached query and reranking models before accepting questions. It does not clean sources,
 chunk documents, generate document embeddings, or download a model. Open it a few
 minutes before presenting so startup/model loading is finished. Each question only
@@ -94,6 +100,14 @@ primary evidence. Questions naming a catalogue and academic year search the matc
 catalogue, using its cover text to establish the year. Missing editions return a
 not-found response rather than substituting another year's catalogue.
 
+Degree-credit questions also include matching saved program-page variants, so a short
+overview cannot hide a conflicting detailed requirements page. The app selects verbatim
+credit excerpts with their entry-level conditions and preserves each source URL. Answer
+rules require explaining differing totals and clarifying the applicable curriculum when
+the sources do not resolve it. Download times and URL suffixes do not establish which
+curriculum is newer. This comparison uses saved documents without crawling or rebuilding
+the embedding index.
+
 Keep the prepared directory and the cached Hugging Face model on this computer.
 Preparation and retrieval are local. **Groq answers still require internet and a
 valid `GROQ_API_KEY` in `.env`**. A ready index does not guarantee API availability
@@ -105,8 +119,8 @@ or answer correctness; rehearse with real questions and inspect the cited excerp
 python -m streamlit run app.py
 ```
 
-1. Open **USEK Website** in the sidebar.
-   Disable **Presentation mode** to use the interactive ingestion controls.
+1. Enable **USEK Chatbot** in the sidebar.
+   Select **Configure USEK sources** to use the interactive ingestion controls.
 2. Set **Crawl directory or documents.jsonl** to your completed crawl directory.
 3. For an initial smoke test, set **Sources to load** to 20. Set it to 0 to load all
    usable sources. A subset is labeled explicitly in the interface.
